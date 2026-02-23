@@ -1,0 +1,62 @@
+{
+  "app": {
+    "title": "PDF Expert",
+    "subtitle": "PDF laden, Bilder platzieren, Größe ändern und als neue PDF speichern.",
+    "languageLabel": "Sprache"
+  },
+  "locale": {
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "steps": {
+    "loadPdf": "1. PDF laden",
+    "addImage": "2. Bild hinzufügen",
+    "savePdf": "3. PDF speichern"
+  },
+  "labels": {
+    "selectPdf": "PDF auswählen",
+    "noPdfLoaded": "Noch keine PDF geladen.",
+    "page": "Seite",
+    "selectImages": "Bild(er) auswählen",
+    "imageTip": "Tipp: Bild anklicken, dann verschieben oder an der Ecke skalieren."
+  },
+  "buttons": {
+    "removeSelected": "Ausgewähltes Bild löschen",
+    "downloadEdited": "Bearbeitete PDF herunterladen"
+  },
+  "status": {
+    "ready": "Bereit.",
+    "pdfLoading": "PDF wird geladen: {{file}} ...",
+    "pdfLoaded": "PDF geladen: {{file}}",
+    "pdfLoadFailed": "PDF konnte nicht geladen werden: {{message}}",
+    "imageAddedOne": "Bild hinzugefügt: {{file}}",
+    "imagesAddedMany": "{{count}} Bilder hinzugefügt.",
+    "imagesAddedPartial": "{{added}} Bild(er) hinzugefügt, {{failed}} fehlgeschlagen.",
+    "imageAddFailed": "Bild konnte nicht hinzugefügt werden: {{message}}",
+    "pdfSaveFailed": "PDF konnte nicht gespeichert werden: {{message}}",
+    "imageRemoved": "Bild entfernt.",
+    "pdfSaved": "PDF gespeichert: {{file}}"
+  },
+  "formats": {
+    "pdfMeta": "{{file}} · {{pages}} Seiten",
+    "pageOption": "Seite {{page}}",
+    "pageLabel": "Seite {{page}}"
+  },
+  "errors": {
+    "loadPdfFirst": "Bitte zuerst eine PDF laden.",
+    "activePageMissing": "Aktive Seite konnte nicht ermittelt werden.",
+    "noImagesAdded": "Keines der ausgewählten Bilder konnte hinzugefügt werden.",
+    "fileReadFailed": "Datei konnte nicht gelesen werden.",
+    "imageLoadFailed": "Bild konnte nicht geladen werden."
+  },
+  "footer": {
+    "title": "Impressum",
+    "responsible": "Verantwortlich für diese Website",
+    "contact": "Kontakt",
+    "version": "Version",
+    "githubAria": "GitHub-Repository",
+    "githubTitle": "GitHub",
+    "mastodonAria": "Mastodon-Profil",
+    "mastodonTitle": "Mastodon"
+  }
+}
