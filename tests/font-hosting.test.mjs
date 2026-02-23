@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
 
 const root = new URL('../', import.meta.url)
 
@@ -8,17 +9,24 @@ test('fonts are loaded from local domain and not from google fonts', async () =>
   const css = await readFile(new URL('src/style.css', root), 'utf8')
 
   assert.doesNotMatch(css, /fonts\.googleapis\.com/)
-  assert.match(css, /@fontsource\/space-grotesk\/400\.css/)
-  assert.match(css, /@fontsource\/space-grotesk\/500\.css/)
-  assert.match(css, /@fontsource\/space-grotesk\/700\.css/)
-  assert.match(css, /@fontsource\/ibm-plex-mono\/400\.css/)
-  assert.match(css, /@fontsource\/ibm-plex-mono\/600\.css/)
+  assert.doesNotMatch(css, /\/node_modules\//)
+  assert.match(css, /\/src\/assets\/fonts\/space-grotesk-latin-400-normal\.woff2/)
+  assert.match(css, /\/src\/assets\/fonts\/space-grotesk-latin-500-normal\.woff2/)
+  assert.match(css, /\/src\/assets\/fonts\/space-grotesk-latin-700-normal\.woff2/)
+  assert.match(css, /\/src\/assets\/fonts\/ibm-plex-mono-latin-400-normal\.woff2/)
+  assert.match(css, /\/src\/assets\/fonts\/ibm-plex-mono-latin-600-normal\.woff2/)
 })
 
-test('font packages are present in runtime dependencies', async () => {
-  const raw = await readFile(new URL('package.json', root), 'utf8')
-  const pkg = JSON.parse(raw)
+test('font files are vendored into src/assets/fonts', async () => {
+  const requiredFontFiles = [
+    'src/assets/fonts/space-grotesk-latin-400-normal.woff2',
+    'src/assets/fonts/space-grotesk-latin-500-normal.woff2',
+    'src/assets/fonts/space-grotesk-latin-700-normal.woff2',
+    'src/assets/fonts/ibm-plex-mono-latin-400-normal.woff2',
+    'src/assets/fonts/ibm-plex-mono-latin-600-normal.woff2'
+  ]
 
-  assert.equal(typeof pkg.dependencies?.['@fontsource/space-grotesk'], 'string')
-  assert.equal(typeof pkg.dependencies?.['@fontsource/ibm-plex-mono'], 'string')
+  for (const fontPath of requiredFontFiles) {
+    await access(new URL(fontPath, root), constants.F_OK)
+  }
 })

@@ -10,6 +10,7 @@ This repository contains the application layer only:
 - Styling in `src/style.css`
 - Browser runtime in `src/main.js`
 - Local test server in `src/server.mjs`
+- All-inkl compatible PHP backend endpoint in `api/app-meta.php`
 
 Main capabilities:
 - Upload and preview multi-page PDFs
@@ -52,6 +53,9 @@ App-level tests are in `tests/`.
 
 ## Notes
 
+- Frontend runtime dependencies are vendored into `src/vendor/` to avoid production `/node_modules` requirements.
+- Font files are served locally from `src/assets/fonts/`.
+- On live hosting (all-inkl), app version metadata is served via `GET /api/app-meta.php`.
 - Images are normalized to PNG internally before PDF embedding for stable export.
 - Multiple overlay images per page are supported.
 - Selected image can be removed via button or `Delete`/`Backspace`.

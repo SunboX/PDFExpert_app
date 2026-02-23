@@ -21,6 +21,11 @@ test('required top-level files exist', async () => {
   assert.equal(await exists('package.json'), true)
 })
 
+test('all-inkl php backend files exist in api/', async () => {
+  assert.equal(await exists('api/app-meta.php'), true)
+  assert.equal(await exists('api/app-version.json'), true)
+})
+
 test('documentation files exist in docs/', async () => {
   assert.equal(await exists('docs/getting-started.md'), true)
   assert.equal(await exists('docs/pdf-editing-workflow.md'), true)
@@ -55,4 +60,11 @@ test('interactjs runtime dependency is wired for direct browser import', async (
 
   assert.equal(typeof pkg.dependencies?.interactjs, 'string')
   assert.equal(typeof pkg.dependencies?.['@interactjs/interactjs'], 'string')
+})
+
+test('vendor runtime files are available in src/vendor', async () => {
+  assert.equal(await exists('src/vendor/interactjs/interact.min.js'), true)
+  assert.equal(await exists('src/vendor/pdf-lib/pdf-lib.esm.min.js'), true)
+  assert.equal(await exists('src/vendor/pdfjs-dist/build/pdf.mjs'), true)
+  assert.equal(await exists('src/vendor/pdfjs-dist/build/pdf.worker.min.mjs'), true)
 })

@@ -32,12 +32,14 @@ test('main runtime initializes i18n and applies translations', async () => {
   const source = await readFile(new URL('src/main.js', root), 'utf8')
 
   assert.match(source, /import \{ I18n \} from '\.\/I18n\.mjs'/)
+  assert.match(source, /import \{ AppApiEndpointUtils \} from '\.\/AppApiEndpointUtils\.mjs'/)
   assert.match(source, /await i18n\.init\(\)/)
   assert.match(source, /applyLocaleToUi\(\)/)
   assert.match(source, /els\.localeSelect\?\.addEventListener\('change'/)
   assert.match(source, /document\.querySelector\('\[data-app-version\]'\)/)
   assert.match(source, /await updateAppVersionText\(\)/)
-  assert.match(source, /fetch\('\/package\.json'/)
+  assert.match(source, /const endpoint = AppApiEndpointUtils\.resolveAppMetaEndpoint\(\)/)
+  assert.match(source, /fetch\(endpoint,\s*\{ cache: 'no-store' \}\)/)
   assert.match(source, /setStatusKey\('status\.ready', 'info'\)/)
 })
 
