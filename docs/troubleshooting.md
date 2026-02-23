@@ -28,7 +28,21 @@ npm start
 
 Reason:
 - A module path was unresolved and the server fallback returned `index.html`.
-- The app now includes `@interactjs/interactjs` and returns `404` for missing asset paths.
+- Verify `src/vendor/` is deployed, especially:
+  - `/src/vendor/interactjs/interact.min.js`
+  - `/src/vendor/pdf-lib/pdf-lib.esm.min.js`
+  - `/src/vendor/pdfjs-dist/build/pdf.mjs`
+  - `/src/vendor/pdfjs-dist/build/pdf.worker.min.mjs`
+
+## 404 Errors For `/node_modules/...` On Live Host
+
+This app should not request browser assets from `/node_modules/` in production.
+
+- Hard refresh and clear cache once after deployment.
+- Confirm the deployed `index.html` no longer contains an import map with `/node_modules` paths.
+- Confirm deployed `src/style.css` contains local font URLs under `/src/assets/fonts/`.
+- Confirm the backend metadata endpoint works:
+  - `GET /api/app-meta.php` should return JSON with a `version` field.
 
 Note:
 - Repeated `Unchecked runtime.lastError ... extension port ...` logs usually come from a browser extension and are not from this app.

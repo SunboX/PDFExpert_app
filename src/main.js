@@ -1,9 +1,14 @@
-import interact from 'interactjs'
-import { PDFDocument } from 'pdf-lib'
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
+import { PDFDocument } from '/src/vendor/pdf-lib/pdf-lib.esm.min.js'
+import { GlobalWorkerOptions, getDocument } from '/src/vendor/pdfjs-dist/build/pdf.mjs'
+import { AppApiEndpointUtils } from './AppApiEndpointUtils.mjs'
 import { I18n } from './I18n.mjs'
 
-GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.min.mjs'
+const interact = globalThis.interact
+if (typeof interact !== 'function') {
+  throw new Error('InteractJS runtime is not loaded. Ensure /src/vendor/interactjs/interact.min.js is available.')
+}
+
+GlobalWorkerOptions.workerSrc = '/src/vendor/pdfjs-dist/build/pdf.worker.min.mjs'
 
 const i18n = new I18n({
   defaultLocale: 'de',
@@ -164,13 +169,14 @@ function applyLocaleToUi() {
 async function updateAppVersionText() {
   if (!els.appVersion) return
   try {
-    const response = await fetch('/package.json', { cache: 'no-store' })
+    const endpoint = AppApiEndpointUtils.resolveAppMetaEndpoint()
+    const response = await fetch(endpoint, { cache: 'no-store' })
     if (!response.ok) {
       els.appVersion.textContent = '—'
       return
     }
-    const pkg = await response.json()
-    const version = String(pkg?.version || '').trim()
+    const payload = await response.json()
+    const version = String(payload?.version || '').trim()
     els.appVersion.textContent = version || '—'
   } catch (_error) {
     els.appVersion.textContent = '—'

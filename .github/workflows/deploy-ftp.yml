@@ -27,14 +27,13 @@ jobs:
         id: changes
         with:
           filters: |
-            deps:
-              - 'package.json'
-              - 'package-lock.json'
             root:
               - 'index.html'
               - 'package.json'
             src:
               - 'src/**'
+            api:
+              - 'api/**'
             docs:
               - 'docs/**'
             workflow:
@@ -109,34 +108,22 @@ jobs:
           state-name: .ftp-deploy-docs-state.json
           timeout: 120000
 
-      # 4) Deploy node_modules -> /node_modules/
-      # Install and deploy runtime dependencies only when lockfile/package changes.
-      - uses: actions/setup-node@v4
-        if: steps.changes.outputs.deps == 'true'
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install production dependencies
-        if: steps.changes.outputs.deps == 'true'
-        run: npm ci --omit=dev
-
-      - name: Deploy node_modules to /node_modules/
-        if: steps.changes.outputs.deps == 'true'
+      # 4) Deploy PHP backend -> /api/
+      - name: Deploy api to /api/
+        if: steps.changes.outputs.api == 'true' || steps.changes.outputs.workflow == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftp
-          local-dir: ./node_modules/
-          server-dir: /node_modules/
+          local-dir: ./api/
+          server-dir: /api/
           exclude: |
-            **/.git*
-            **/.github/**
+            **/.DS_Store
             **/.env
             **/.env.*
             **/*.env
             **/*.env.*
-          state-name: .ftp-deploy-nm-state.json
+          state-name: .ftp-deploy-api-state.json
           timeout: 120000

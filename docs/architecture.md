@@ -1,17 +1,20 @@
 # Architecture
 
 ## Runtime Modules
-- `index.html`: static shell, import map, and script entry
+- `index.html`: static shell and script entry
 - `src/main.js`: UI state, rendering, InteractJS interactions, and PDF export
+- `src/AppApiEndpointUtils.mjs`: resolves metadata endpoint paths for localhost vs. live hosting
 - `src/I18n.mjs`: runtime localization loader, locale detection, and DOM translation binding
 - `src/i18n/*.json`: translation bundles (`en`, `de`)
 - `src/style.css`: layout and interaction styling
 - `src/server.mjs`: local Express test server and static file hosting
+- `api/app-meta.php`: all-inkl compatible PHP metadata endpoint for live hosting
 
 ## Core Libraries
-- `pdfjs-dist`: renders uploaded PDFs into canvases for visual editing
-- `interactjs`: drag/resize behavior for image overlays
-- `pdf-lib`: embeds overlays into a downloadable output PDF
+- `src/vendor/pdfjs-dist/build/pdf.mjs`: renders uploaded PDFs into canvases for visual editing
+- `src/vendor/interactjs/interact.min.js`: drag/resize behavior for image overlays
+- `src/vendor/pdf-lib/pdf-lib.esm.min.js`: embeds overlays into a downloadable output PDF
+- `src/assets/fonts/*.woff2`: locally hosted UI fonts (same-domain loading)
 
 ## Data Flow
 1. User uploads PDF file.
