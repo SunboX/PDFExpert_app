@@ -1,0 +1,62 @@
+{
+  "app": {
+    "title": "PDF Expert",
+    "subtitle": "Load a PDF, place images, resize them, and save as a new PDF.",
+    "languageLabel": "Language"
+  },
+  "locale": {
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "steps": {
+    "loadPdf": "1. Load PDF",
+    "addImage": "2. Add Image",
+    "savePdf": "3. Save PDF"
+  },
+  "labels": {
+    "selectPdf": "Select PDF",
+    "noPdfLoaded": "No PDF loaded yet.",
+    "page": "Page",
+    "selectImages": "Select image(s)",
+    "imageTip": "Tip: Click an image, then drag it or resize it from the corner."
+  },
+  "buttons": {
+    "removeSelected": "Delete selected image",
+    "downloadEdited": "Download edited PDF"
+  },
+  "status": {
+    "ready": "Ready.",
+    "pdfLoading": "Loading PDF: {{file}} ...",
+    "pdfLoaded": "PDF loaded: {{file}}",
+    "pdfLoadFailed": "Could not load PDF: {{message}}",
+    "imageAddedOne": "Image added: {{file}}",
+    "imagesAddedMany": "{{count}} images added.",
+    "imagesAddedPartial": "{{added}} image(s) added, {{failed}} failed.",
+    "imageAddFailed": "Could not add image: {{message}}",
+    "pdfSaveFailed": "Could not save PDF: {{message}}",
+    "imageRemoved": "Image removed.",
+    "pdfSaved": "PDF saved: {{file}}"
+  },
+  "formats": {
+    "pdfMeta": "{{file}} · {{pages}} pages",
+    "pageOption": "Page {{page}}",
+    "pageLabel": "Page {{page}}"
+  },
+  "errors": {
+    "loadPdfFirst": "Please load a PDF first.",
+    "activePageMissing": "Could not determine the active page.",
+    "noImagesAdded": "None of the selected images could be added.",
+    "fileReadFailed": "File could not be read.",
+    "imageLoadFailed": "Image could not be loaded."
+  },
+  "footer": {
+    "title": "Imprint",
+    "responsible": "Responsible for this website",
+    "contact": "Contact",
+    "version": "Version",
+    "githubAria": "GitHub repository",
+    "githubTitle": "GitHub",
+    "mastodonAria": "Mastodon profile",
+    "mastodonTitle": "Mastodon"
+  }
+}
