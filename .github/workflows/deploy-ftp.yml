@@ -66,6 +66,7 @@ jobs:
             **/*.env
             **/*.env.*
           state-name: .ftp-deploy-root-state.json
+          timeout: 120000
 
       # 2) Deploy src -> /src/
       - name: Deploy src to /src/
@@ -85,10 +86,12 @@ jobs:
             **/*.env
             **/*.env.*
           state-name: .ftp-deploy-src-state.json
+          timeout: 120000
 
       # 3) Deploy docs -> /docs/
       - name: Deploy docs to /docs/
-        if: steps.changes.outputs.docs == 'true' || steps.changes.outputs.workflow == 'true'
+        if: steps.changes.outputs.docs == 'true'
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -104,21 +107,22 @@ jobs:
             **/*.env
             **/*.env.*
           state-name: .ftp-deploy-docs-state.json
+          timeout: 120000
 
       # 4) Deploy node_modules -> /node_modules/
       # Install and deploy runtime dependencies only when lockfile/package changes.
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.deps == 'true' || steps.changes.outputs.workflow == 'true'
+        if: steps.changes.outputs.deps == 'true'
         with:
           node-version: 20
           cache: npm
 
       - name: Install production dependencies
-        if: steps.changes.outputs.deps == 'true' || steps.changes.outputs.workflow == 'true'
+        if: steps.changes.outputs.deps == 'true'
         run: npm ci --omit=dev
 
       - name: Deploy node_modules to /node_modules/
-        if: steps.changes.outputs.deps == 'true' || steps.changes.outputs.workflow == 'true'
+        if: steps.changes.outputs.deps == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -135,3 +139,4 @@ jobs:
             **/*.env
             **/*.env.*
           state-name: .ftp-deploy-nm-state.json
+          timeout: 120000
