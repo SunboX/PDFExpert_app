@@ -37,9 +37,11 @@ jobs:
               - 'src/**'
             docs:
               - 'docs/**'
+            workflow:
+              - '.github/workflows/deploy-ftp.yml'
 
       - name: Prepare root deploy bundle
-        if: steps.changes.outputs.root == 'true'
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.workflow == 'true'
         run: |
           rm -rf .deploy-root
           mkdir -p .deploy-root
@@ -48,7 +50,7 @@ jobs:
 
       # 1) Deploy root files -> /
       - name: Deploy root files to /
-        if: steps.changes.outputs.root == 'true'
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.workflow == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -67,7 +69,7 @@ jobs:
 
       # 2) Deploy src -> /src/
       - name: Deploy src to /src/
-        if: steps.changes.outputs.src == 'true'
+        if: steps.changes.outputs.src == 'true' || steps.changes.outputs.workflow == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -86,7 +88,7 @@ jobs:
 
       # 3) Deploy docs -> /docs/
       - name: Deploy docs to /docs/
-        if: steps.changes.outputs.docs == 'true'
+        if: steps.changes.outputs.docs == 'true' || steps.changes.outputs.workflow == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -106,17 +108,17 @@ jobs:
       # 4) Deploy node_modules -> /node_modules/
       # Install and deploy runtime dependencies only when lockfile/package changes.
       - uses: actions/setup-node@v4
-        if: steps.changes.outputs.deps == 'true'
+        if: steps.changes.outputs.deps == 'true' || steps.changes.outputs.workflow == 'true'
         with:
           node-version: 20
           cache: npm
 
       - name: Install production dependencies
-        if: steps.changes.outputs.deps == 'true'
+        if: steps.changes.outputs.deps == 'true' || steps.changes.outputs.workflow == 'true'
         run: npm ci --omit=dev
 
       - name: Deploy node_modules to /node_modules/
-        if: steps.changes.outputs.deps == 'true'
+        if: steps.changes.outputs.deps == 'true' || steps.changes.outputs.workflow == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
