@@ -11,6 +11,8 @@ test('index html provides locale selector and i18n hooks', async () => {
   assert.match(html, /data-i18n="app\.title"/)
   assert.match(html, /data-i18n="app\.subtitle"/)
   assert.match(html, /data-i18n-aria-label="app\.languageLabel"/)
+  assert.match(html, /id="workspace-empty-state"/)
+  assert.match(html, /data-i18n="labels\.workspaceDropPdfPrompt"/)
 })
 
 test('index html footer includes github and mastodon links', async () => {

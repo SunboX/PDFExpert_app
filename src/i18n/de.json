@@ -17,6 +17,7 @@
   "labels": {
     "selectPdf": "PDF auswählen",
     "noPdfLoaded": "Noch keine PDF geladen.",
+    "workspaceDropPdfPrompt": "Bitte lade eine PDF hoch oder ziehe sie hierher.",
     "page": "Seite",
     "appendPdfs": "PDF(s) anhängen",
     "pageManageTip": "Weitere PDFs hochladen, um deren Seiten automatisch hinten anzuhängen.",
@@ -41,6 +42,7 @@
     "pdfLoadFailed": "PDF konnte nicht geladen werden: {{message}}",
     "appendingPdf": "{{count}} PDF-Datei(en) werden angehängt ...",
     "pagesAppended": "{{pages}} Seite(n) aus {{files}} PDF-Datei(en) angehängt.",
+    "pagesInserted": "{{pages}} Seite(n) aus {{files}} PDF-Datei(en) nach Seite {{after}} eingefügt.",
     "pdfAppendFailed": "PDF-Seiten konnten nicht angehängt werden: {{message}}",
     "pageMoved": "Seite von {{from}} nach {{to}} verschoben.",
     "pageMoveFailed": "Seite konnte nicht verschoben werden: {{message}}",
@@ -68,6 +70,7 @@
   "errors": {
     "loadPdfFirst": "Bitte zuerst eine PDF laden.",
     "activePageMissing": "Aktive Seite konnte nicht ermittelt werden.",
+    "dropPdfOnly": "Hier können nur PDF-Dateien abgelegt werden.",
     "dropImagesOnly": "Hier können nur Bilddateien abgelegt werden.",
     "noImagesAdded": "Keines der ausgewählten Bilder konnte hinzugefügt werden.",
     "fileReadFailed": "Datei konnte nicht gelesen werden.",

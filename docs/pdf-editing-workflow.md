@@ -2,6 +2,7 @@
 
 ## 1) Load PDF
 - Click **PDF auswählen**.
+- Or drag and drop a `.pdf` file into the empty workspace area.
 - Choose a local `.pdf` file.
 - All pages are rendered in the workspace.
 
@@ -11,6 +12,7 @@
 - Add a new blank page after the active page.
 - Delete the active page (at least one page always remains).
 - Upload additional PDFs with **PDF(s) anhängen** to append all their pages automatically.
+- Or drag one or more PDF files onto a page preview to insert those pages directly after that page.
 
 ## 3) Add Image
 - Select the target page from **Seite**.
