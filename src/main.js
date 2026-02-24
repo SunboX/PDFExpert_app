@@ -399,7 +399,7 @@ async function hydratePdfFromState(options = {}) {
 
 /**
  * Applies a structural PDF mutation and refreshes page previews.
- * @param {(pdfDoc: any) => Promise<void> | void} mutator
+ * @param {(pdfDoc: any) => Promise<void | any> | void | any} mutator
  * @param {{placements?: Array<object>, activePage?: number}} [options]
  * @returns {Promise<void>}
  */
@@ -410,12 +410,28 @@ async function withPdfMutation(mutator, options = {}) {
 
   const placements = normalizePlacementSnapshot(options.placements ?? getPlacementSnapshot())
   const pdfDoc = await PDFDocument.load(state.pdfBytes.slice())
-  await mutator(pdfDoc)
-  state.pdfBytes = new Uint8Array(await pdfDoc.save())
+  const mutationResult = await mutator(pdfDoc)
+  const nextPdfDoc = mutationResult && typeof mutationResult.save === 'function' ? mutationResult : pdfDoc
+  state.pdfBytes = new Uint8Array(await nextPdfDoc.save())
   await hydratePdfFromState({
     placements,
     activePage: options.activePage ?? state.activePage
   })
+}
+
+/**
+ * Creates a new document with pages copied in the provided order.
+ * @param {any} sourcePdfDoc
+ * @param {number[]} orderedPageIndices
+ * @returns {Promise<any>}
+ */
+async function buildReorderedPdf(sourcePdfDoc, orderedPageIndices) {
+  const reorderedPdfDoc = await PDFDocument.create()
+  const copiedPages = await reorderedPdfDoc.copyPages(sourcePdfDoc, orderedPageIndices)
+  for (const copiedPage of copiedPages) {
+    reorderedPdfDoc.addPage(copiedPage)
+  }
+  return reorderedPdfDoc
 }
 
 function populatePageSelect(pageCount) {
@@ -708,8 +724,12 @@ async function moveActivePage(direction) {
   await runWithBusyState(async () => {
     const placements = remapPlacementsForPageMove(getPlacementSnapshot(), fromPage, toPage)
     await withPdfMutation(
-      (pdfDoc) => {
-        pdfDoc.movePage(fromPage - 1, toPage - 1)
+      async (pdfDoc) => {
+        const pageCount = pdfDoc.getPageCount()
+        const reorderedIndices = Array.from({ length: pageCount }, (_value, index) => index)
+        const [movedIndex] = reorderedIndices.splice(fromPage - 1, 1)
+        reorderedIndices.splice(toPage - 1, 0, movedIndex)
+        return buildReorderedPdf(pdfDoc, reorderedIndices)
       },
       {
         placements,
