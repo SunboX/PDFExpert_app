@@ -14,8 +14,10 @@ This repository contains the application layer only:
 
 Main capabilities:
 - Upload and preview multi-page PDFs
+- Load the first PDF either via file picker or by dragging it into the empty workspace
 - Reorder pages, add blank pages, and delete pages
 - Append pages by uploading additional PDF files
+- Insert pages after a specific page by dropping one or more PDF files onto that page preview
 - Add as many images as needed on selected pages (single or multi-select), including drag-and-drop directly onto a page
 - Move, scale, and rotate images using InteractJS and in-app controls
 - Export the edited document as a new PDF

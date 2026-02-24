@@ -17,6 +17,7 @@
   "labels": {
     "selectPdf": "Select PDF",
     "noPdfLoaded": "No PDF loaded yet.",
+    "workspaceDropPdfPrompt": "Please upload or drop a PDF here.",
     "page": "Page",
     "appendPdfs": "Append PDF(s)",
     "pageManageTip": "Upload additional PDFs to append all their pages to the end.",
@@ -41,6 +42,7 @@
     "pdfLoadFailed": "Could not load PDF: {{message}}",
     "appendingPdf": "Appending {{count}} PDF file(s) ...",
     "pagesAppended": "{{pages}} page(s) appended from {{files}} PDF file(s).",
+    "pagesInserted": "{{pages}} page(s) inserted after page {{after}} from {{files}} PDF file(s).",
     "pdfAppendFailed": "Could not append PDF pages: {{message}}",
     "pageMoved": "Page moved from {{from}} to {{to}}.",
     "pageMoveFailed": "Could not move page: {{message}}",
@@ -68,6 +70,7 @@
   "errors": {
     "loadPdfFirst": "Please load a PDF first.",
     "activePageMissing": "Could not determine the active page.",
+    "dropPdfOnly": "Only PDF files can be dropped here.",
     "dropImagesOnly": "Only image files can be dropped here.",
     "noImagesAdded": "None of the selected images could be added.",
     "fileReadFailed": "File could not be read.",

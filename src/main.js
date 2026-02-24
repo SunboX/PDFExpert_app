@@ -31,6 +31,9 @@ const els = {
   rotateSelectedLeft: document.querySelector('#rotate-selected-left'),
   rotateSelectedRight: document.querySelector('#rotate-selected-right'),
   removeSelected: document.querySelector('#remove-selected'),
+  controls: document.querySelector('.controls'),
+  workspace: document.querySelector('#workspace'),
+  workspaceEmptyState: document.querySelector('#workspace-empty-state'),
   pageList: document.querySelector('#page-list'),
   status: document.querySelector('#status'),
   pdfMeta: document.querySelector('#pdf-meta'),
@@ -56,6 +59,7 @@ const state = {
 }
 
 let webMcpIntegration = null
+let resizeRerenderTimeoutId = null
 
 els.pdfInput.addEventListener('change', async (event) => {
   const file = event.target.files?.[0]
@@ -164,6 +168,9 @@ document.addEventListener('keydown', (event) => {
   if (tagName === 'input' || tagName === 'textarea') return
   removeSelectedPlacement()
 })
+
+setupWorkspacePdfDropTarget()
+window.addEventListener('resize', handleWindowResize)
 
 function t(key, params = {}) {
   return i18n.t(key, params)
@@ -372,6 +379,117 @@ function updatePageActionAvailability() {
   els.deletePage.disabled = state.isBusy || !canDeletePage
 }
 
+/**
+ * Toggles workspace empty-state styling based on whether a PDF is loaded.
+ * @returns {void}
+ */
+function updateWorkspaceEmptyState() {
+  if (!els.workspace || !els.workspaceEmptyState) return
+  const hasPdf = Boolean(state.pdfBytes)
+  els.workspace.classList.toggle('is-empty', !hasPdf)
+  if (hasPdf) {
+    els.workspace.classList.remove('is-empty-drop-target')
+  }
+  syncWorkspaceEmptyHeight()
+}
+
+/**
+ * Keeps the empty workspace height aligned with the controls panel height.
+ * @returns {void}
+ */
+function syncWorkspaceEmptyHeight() {
+  if (!els.workspace || !els.controls) return
+  const hasPdf = Boolean(state.pdfBytes)
+  if (hasPdf) {
+    els.workspace.style.removeProperty('--workspace-empty-min-height')
+    return
+  }
+  const controlsBounds = els.controls.getBoundingClientRect()
+  const controlsHeight = Math.ceil(controlsBounds.height)
+  if (controlsHeight > 0) {
+    els.workspace.style.setProperty('--workspace-empty-min-height', `${controlsHeight}px`)
+  }
+}
+
+/**
+ * Returns rendered page dimensions keyed by page number.
+ * @returns {Map<number, {renderedWidth: number, renderedHeight: number}>}
+ */
+function getRenderedPageMetricsByNumber() {
+  const metrics = new Map()
+  for (const [pageNumber, pageInfo] of state.pageInfoByNumber.entries()) {
+    metrics.set(pageNumber, {
+      renderedWidth: pageInfo.renderedWidth,
+      renderedHeight: pageInfo.renderedHeight
+    })
+  }
+  return metrics
+}
+
+/**
+ * Scales placement geometry from previous rendered page sizes to current sizes.
+ * @param {Array<object>} placements
+ * @param {Map<number, {renderedWidth: number, renderedHeight: number}>} previousPageMetricsByNumber
+ * @returns {Array<object>}
+ */
+function scalePlacementsForUpdatedPageMetrics(placements, previousPageMetricsByNumber) {
+  return placements.map((placement) => {
+    const previousMetrics = previousPageMetricsByNumber.get(placement.pageNumber)
+    const nextMetrics = state.pageInfoByNumber.get(placement.pageNumber)
+    if (!previousMetrics || !nextMetrics) {
+      return { ...placement }
+    }
+
+    const xScale = previousMetrics.renderedWidth > 0 ? nextMetrics.renderedWidth / previousMetrics.renderedWidth : 1
+    const yScale = previousMetrics.renderedHeight > 0 ? nextMetrics.renderedHeight / previousMetrics.renderedHeight : 1
+
+    return {
+      ...placement,
+      x: placement.x * xScale,
+      y: placement.y * yScale,
+      width: placement.width * xScale,
+      height: placement.height * yScale
+    }
+  })
+}
+
+/**
+ * Schedules a debounced page re-render after browser window size changes.
+ * @returns {void}
+ */
+function handleWindowResize() {
+  if (resizeRerenderTimeoutId) {
+    window.clearTimeout(resizeRerenderTimeoutId)
+  }
+  resizeRerenderTimeoutId = window.setTimeout(() => {
+    resizeRerenderTimeoutId = null
+    if (state.pdfBytes) {
+      void rerenderPagesForCurrentLayout()
+      return
+    }
+    syncWorkspaceEmptyHeight()
+  }, 160)
+}
+
+/**
+ * Re-renders all pages so previews and overlays adapt to the current layout width.
+ * @returns {Promise<void>}
+ */
+async function rerenderPagesForCurrentLayout() {
+  if (!state.pdfBytes || !state.pdfProxy || state.isBusy) return
+  const previousPageMetricsByNumber = getRenderedPageMetricsByNumber()
+  if (!previousPageMetricsByNumber.size) return
+
+  const placements = getPlacementSnapshot()
+  await runWithBusyState(async () => {
+    await hydratePdfFromState({
+      placements,
+      activePage: state.activePage,
+      previousPageMetricsByNumber
+    })
+  }, 'status.operationFailed')
+}
+
 function updateUiAvailability() {
   const hasPdf = Boolean(state.pdfBytes)
   const hasSelection = Boolean(state.selectedPlacementId)
@@ -384,6 +502,7 @@ function updateUiAvailability() {
   els.rotateSelectedRight.disabled = state.isBusy || !hasSelection
   els.removeSelected.disabled = state.isBusy || !hasSelection
   updatePageActionAvailability()
+  updateWorkspaceEmptyState()
   refreshWebMcpContext()
 }
 
@@ -397,7 +516,11 @@ async function loadPdf(file) {
 
 /**
  * Re-renders the current PDF bytes and restores overlay placements.
- * @param {{placements?: Array<object>, activePage?: number}} [options]
+ * @param {{
+ *   placements?: Array<object>,
+ *   activePage?: number,
+ *   previousPageMetricsByNumber?: Map<number, {renderedWidth: number, renderedHeight: number}>
+ * }} [options]
  * @returns {Promise<void>}
  */
 async function hydratePdfFromState(options = {}) {
@@ -416,6 +539,7 @@ async function hydratePdfFromState(options = {}) {
   const placements = normalizePlacementSnapshot(options.placements || [])
   const nextActivePage = Number(options.activePage || state.activePage || 1)
   const previousSelectionId = state.selectedPlacementId
+  const previousPageMetricsByNumber = options.previousPageMetricsByNumber instanceof Map ? options.previousPageMetricsByNumber : null
 
   if (state.pdfProxy) {
     state.pdfProxy.destroy()
@@ -428,10 +552,14 @@ async function hydratePdfFromState(options = {}) {
 
   clearPlacements()
   clearPages()
+  updateWorkspaceEmptyState()
   await renderAllPages(state.pdfProxy)
+  const scaledPlacements = previousPageMetricsByNumber
+    ? scalePlacementsForUpdatedPageMetrics(placements, previousPageMetricsByNumber)
+    : placements
   populatePageSelect(state.pdfProxy.numPages)
   setActivePage(Math.min(Math.max(nextActivePage, 1), state.pdfProxy.numPages))
-  restorePlacements(placements, previousSelectionId)
+  restorePlacements(scaledPlacements, previousSelectionId)
   updatePdfMetaText()
   updateUiAvailability()
 }
@@ -564,6 +692,57 @@ async function renderPageToCanvas(page, canvas, viewport) {
 }
 
 /**
+ * Wires PDF drag-and-drop handling for the empty workspace state.
+ * @returns {void}
+ */
+function setupWorkspacePdfDropTarget() {
+  if (!els.workspace || !els.workspaceEmptyState) return
+  let dragDepth = 0
+
+  els.workspace.addEventListener('dragenter', (event) => {
+    if (state.pdfBytes || !hasFileDropPayload(event.dataTransfer)) return
+    event.preventDefault()
+    dragDepth += 1
+    els.workspace.classList.add('is-empty-drop-target')
+  })
+
+  els.workspace.addEventListener('dragover', (event) => {
+    if (state.pdfBytes || !hasFileDropPayload(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    els.workspace.classList.add('is-empty-drop-target')
+  })
+
+  els.workspace.addEventListener('dragleave', (event) => {
+    if (state.pdfBytes || !hasFileDropPayload(event.dataTransfer)) return
+    dragDepth = Math.max(dragDepth - 1, 0)
+    if (dragDepth === 0) {
+      els.workspace.classList.remove('is-empty-drop-target')
+    }
+  })
+
+  els.workspace.addEventListener('drop', async (event) => {
+    if (state.pdfBytes || !hasFileDropPayload(event.dataTransfer)) return
+    event.preventDefault()
+    dragDepth = 0
+    els.workspace.classList.remove('is-empty-drop-target')
+
+    const pdfFiles = getPdfFilesFromDataTransfer(event.dataTransfer)
+    if (!pdfFiles.length) {
+      setStatusKey('status.pdfLoadFailed', 'error', { message: t('errors.dropPdfOnly') })
+      return
+    }
+
+    const file = pdfFiles[0]
+    await runWithBusyState(async () => {
+      setStatusKey('status.pdfLoading', 'info', { file: file.name })
+      await loadPdf(file)
+      setStatusKey('status.pdfLoaded', 'success', { file: file.name })
+    }, 'status.pdfLoadFailed')
+  })
+}
+
+/**
  * Wires image file drag-and-drop handling for a rendered page.
  * @param {{pageNumber: number, wrapper: HTMLElement, overlay: HTMLElement}} options
  * @returns {void}
@@ -600,6 +779,20 @@ function setupPageImageDropTarget(options) {
     dragDepth = 0
     wrapper.classList.remove('is-drop-target')
     setActivePage(pageNumber)
+
+    const pdfFiles = getPdfFilesFromDataTransfer(event.dataTransfer)
+    if (pdfFiles.length > 0) {
+      await runWithBusyState(async () => {
+        setStatusKey('status.appendingPdf', 'info', { count: pdfFiles.length })
+        const result = await insertPdfFilesAfterPage(pdfFiles, pageNumber)
+        setStatusKey('status.pagesInserted', 'success', {
+          pages: result.insertedPages,
+          files: result.insertedFiles,
+          after: pageNumber
+        })
+      }, 'status.pdfAppendFailed')
+      return
+    }
 
     const imageFiles = getImageFilesFromDataTransfer(event.dataTransfer)
     if (!imageFiles.length) {
@@ -644,6 +837,17 @@ function hasFileDropPayload(dataTransfer) {
 }
 
 /**
+ * Checks whether a dropped file is a PDF.
+ * @param {File} file
+ * @returns {boolean}
+ */
+function isPdfFile(file) {
+  if (!file) return false
+  if (String(file.type || '').toLowerCase() === 'application/pdf') return true
+  return /\.pdf$/i.test(String(file.name || ''))
+}
+
+/**
  * Checks whether a dropped file is a supported image type.
  * @param {File} file
  * @returns {boolean}
@@ -662,6 +866,16 @@ function isImageFile(file) {
 function getImageFilesFromDataTransfer(dataTransfer) {
   if (!dataTransfer) return []
   return Array.from(dataTransfer.files || []).filter((file) => isImageFile(file))
+}
+
+/**
+ * Extracts PDF files from a drop payload.
+ * @param {DataTransfer | null} dataTransfer
+ * @returns {File[]}
+ */
+function getPdfFilesFromDataTransfer(dataTransfer) {
+  if (!dataTransfer) return []
+  return Array.from(dataTransfer.files || []).filter((file) => isPdfFile(file))
 }
 
 /**
@@ -803,13 +1017,50 @@ function remapPlacementsForPageMove(placements, fromPage, toPage) {
  * @returns {Array<object>}
  */
 function remapPlacementsForPageInsertion(placements, afterPage) {
+  return remapPlacementsForPageBlockInsertion(placements, afterPage, 1)
+}
+
+/**
+ * Remaps placement page numbers when inserting multiple pages.
+ * @param {Array<object>} placements
+ * @param {number} afterPage
+ * @param {number} insertedPageCount
+ * @returns {Array<object>}
+ */
+function remapPlacementsForPageBlockInsertion(placements, afterPage, insertedPageCount) {
+  const normalizedInsertCount = Math.max(0, Math.trunc(insertedPageCount))
+  if (normalizedInsertCount === 0) {
+    return placements.map((placement) => ({ ...placement }))
+  }
   return placements.map((placement) => {
     const nextPlacement = { ...placement }
     if (placement.pageNumber > afterPage) {
-      nextPlacement.pageNumber = placement.pageNumber + 1
+      nextPlacement.pageNumber = placement.pageNumber + normalizedInsertCount
     }
     return nextPlacement
   })
+}
+
+/**
+ * Loads source PDF documents and their page indices for insertion.
+ * @param {File[]} files
+ * @returns {Promise<{sources: Array<{sourcePdfDoc: any, pageIndices: number[]}>, totalPages: number}>}
+ */
+async function loadPdfInsertionSources(files) {
+  const sources = []
+  let totalPages = 0
+  for (const file of files) {
+    const sourceBytes = new Uint8Array(await file.arrayBuffer())
+    const sourcePdfDoc = await PDFDocument.load(sourceBytes)
+    const pageIndices = sourcePdfDoc.getPageIndices()
+    if (!pageIndices.length) continue
+    sources.push({
+      sourcePdfDoc,
+      pageIndices
+    })
+    totalPages += pageIndices.length
+  }
+  return { sources, totalPages }
 }
 
 /**
@@ -889,6 +1140,62 @@ async function appendPdfFiles(files) {
     loadedBasePdf,
     appendedPages,
     appendedFiles: queue.length
+  }
+}
+
+/**
+ * Inserts all pages from PDF files directly after a target page.
+ * @param {File[]} files
+ * @param {number} afterPage
+ * @returns {Promise<{insertedPages: number, insertedFiles: number}>}
+ */
+async function insertPdfFilesAfterPage(files, afterPage) {
+  if (!state.pdfBytes || !state.pdfProxy) {
+    throw new Error(t('errors.loadPdfFirst'))
+  }
+
+  const normalizedAfterPage = Math.trunc(afterPage)
+  if (!Number.isFinite(normalizedAfterPage) || normalizedAfterPage < 1 || normalizedAfterPage > state.pdfProxy.numPages) {
+    throw new Error(`Page ${afterPage} is out of range.`)
+  }
+
+  const queue = Array.from(files || [])
+  if (!queue.length) {
+    return {
+      insertedPages: 0,
+      insertedFiles: 0
+    }
+  }
+
+  const { sources, totalPages } = await loadPdfInsertionSources(queue)
+  if (!sources.length || totalPages <= 0) {
+    return {
+      insertedPages: 0,
+      insertedFiles: 0
+    }
+  }
+
+  const placements = remapPlacementsForPageBlockInsertion(getPlacementSnapshot(), normalizedAfterPage, totalPages)
+  await withPdfMutation(
+    async (pdfDoc) => {
+      let insertionIndex = normalizedAfterPage
+      for (const source of sources) {
+        const copiedPages = await pdfDoc.copyPages(source.sourcePdfDoc, source.pageIndices)
+        for (const copiedPage of copiedPages) {
+          pdfDoc.insertPage(insertionIndex, copiedPage)
+          insertionIndex += 1
+        }
+      }
+    },
+    {
+      placements,
+      activePage: normalizedAfterPage
+    }
+  )
+
+  return {
+    insertedPages: totalPages,
+    insertedFiles: sources.length
   }
 }
 
