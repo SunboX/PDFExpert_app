@@ -10,25 +10,43 @@
   },
   "steps": {
     "loadPdf": "1. Load PDF",
-    "addImage": "2. Add Image",
-    "savePdf": "3. Save PDF"
+    "managePages": "2. Manage Pages",
+    "addImage": "3. Add Image",
+    "savePdf": "4. Save PDF"
   },
   "labels": {
     "selectPdf": "Select PDF",
     "noPdfLoaded": "No PDF loaded yet.",
     "page": "Page",
+    "appendPdfs": "Append PDF(s)",
+    "pageManageTip": "Upload additional PDFs to append all their pages to the end.",
     "selectImages": "Select image(s)",
     "imageTip": "Tip: Click an image, then drag it or resize it from the corner."
   },
   "buttons": {
+    "movePageUp": "Move page up",
+    "movePageDown": "Move page down",
+    "addBlankPage": "Add blank page",
+    "deletePage": "Delete page",
     "removeSelected": "Delete selected image",
     "downloadEdited": "Download edited PDF"
   },
   "status": {
     "ready": "Ready.",
+    "operationFailed": "Operation failed: {{message}}",
     "pdfLoading": "Loading PDF: {{file}} ...",
     "pdfLoaded": "PDF loaded: {{file}}",
     "pdfLoadFailed": "Could not load PDF: {{message}}",
+    "appendingPdf": "Appending {{count}} PDF file(s) ...",
+    "pagesAppended": "{{pages}} page(s) appended from {{files}} PDF file(s).",
+    "pdfAppendFailed": "Could not append PDF pages: {{message}}",
+    "pageMoved": "Page moved from {{from}} to {{to}}.",
+    "pageMoveFailed": "Could not move page: {{message}}",
+    "pageAdded": "Blank page added at position {{page}}.",
+    "pageAddFailed": "Could not add page: {{message}}",
+    "pageDeleted": "Page {{page}} deleted.",
+    "pageDeleteFailed": "Could not delete page: {{message}}",
+    "lastPageDeletionBlocked": "At least one page must remain in the PDF.",
     "imageAddedOne": "Image added: {{file}}",
     "imagesAddedMany": "{{count}} images added.",
     "imagesAddedPartial": "{{added}} image(s) added, {{failed}} failed.",

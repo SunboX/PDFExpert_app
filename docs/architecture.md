@@ -19,8 +19,9 @@
 ## Data Flow
 1. User uploads PDF file.
 2. PDF is parsed and rendered page-by-page.
-3. User adds image overlays to selected pages.
-4. Overlay positions/sizes are tracked in memory.
-5. On save, overlays are converted into PDF coordinates and drawn onto pages.
-6. New PDF is generated and downloaded.
-7. Locale changes update static UI labels and runtime status messages.
+3. Optional page operations mutate PDF bytes in memory (`move`, `insert`, `delete`, `append`).
+4. User adds image overlays to selected pages.
+5. Overlay positions/sizes are tracked in memory and remapped on page structure changes.
+6. On save, overlays are converted into PDF coordinates and drawn onto pages.
+7. New PDF is generated and downloaded.
+8. Locale changes update static UI labels and runtime status messages.
