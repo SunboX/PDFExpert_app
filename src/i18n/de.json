@@ -10,25 +10,43 @@
   },
   "steps": {
     "loadPdf": "1. PDF laden",
-    "addImage": "2. Bild hinzufügen",
-    "savePdf": "3. PDF speichern"
+    "managePages": "2. Seiten verwalten",
+    "addImage": "3. Bild hinzufügen",
+    "savePdf": "4. PDF speichern"
   },
   "labels": {
     "selectPdf": "PDF auswählen",
     "noPdfLoaded": "Noch keine PDF geladen.",
     "page": "Seite",
+    "appendPdfs": "PDF(s) anhängen",
+    "pageManageTip": "Weitere PDFs hochladen, um deren Seiten automatisch hinten anzuhängen.",
     "selectImages": "Bild(er) auswählen",
     "imageTip": "Tipp: Bild anklicken, dann verschieben oder an der Ecke skalieren."
   },
   "buttons": {
+    "movePageUp": "Seite nach oben",
+    "movePageDown": "Seite nach unten",
+    "addBlankPage": "Leere Seite hinzufügen",
+    "deletePage": "Seite löschen",
     "removeSelected": "Ausgewähltes Bild löschen",
     "downloadEdited": "Bearbeitete PDF herunterladen"
   },
   "status": {
     "ready": "Bereit.",
+    "operationFailed": "Aktion fehlgeschlagen: {{message}}",
     "pdfLoading": "PDF wird geladen: {{file}} ...",
     "pdfLoaded": "PDF geladen: {{file}}",
     "pdfLoadFailed": "PDF konnte nicht geladen werden: {{message}}",
+    "appendingPdf": "{{count}} PDF-Datei(en) werden angehängt ...",
+    "pagesAppended": "{{pages}} Seite(n) aus {{files}} PDF-Datei(en) angehängt.",
+    "pdfAppendFailed": "PDF-Seiten konnten nicht angehängt werden: {{message}}",
+    "pageMoved": "Seite von {{from}} nach {{to}} verschoben.",
+    "pageMoveFailed": "Seite konnte nicht verschoben werden: {{message}}",
+    "pageAdded": "Leere Seite an Position {{page}} hinzugefügt.",
+    "pageAddFailed": "Seite konnte nicht hinzugefügt werden: {{message}}",
+    "pageDeleted": "Seite {{page}} gelöscht.",
+    "pageDeleteFailed": "Seite konnte nicht gelöscht werden: {{message}}",
+    "lastPageDeletionBlocked": "Mindestens eine Seite muss in der PDF verbleiben.",
     "imageAddedOne": "Bild hinzugefügt: {{file}}",
     "imagesAddedMany": "{{count}} Bilder hinzugefügt.",
     "imagesAddedPartial": "{{added}} Bild(er) hinzugefügt, {{failed}} fehlgeschlagen.",

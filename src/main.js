@@ -18,9 +18,14 @@ const i18n = new I18n({
 
 const els = {
   pdfInput: document.querySelector('#pdf-input'),
+  appendPdfInput: document.querySelector('#append-pdf-input'),
   imageInput: document.querySelector('#image-input'),
   pageSelect: document.querySelector('#page-select'),
   localeSelect: document.querySelector('#locale-select'),
+  movePageUp: document.querySelector('#move-page-up'),
+  movePageDown: document.querySelector('#move-page-down'),
+  addBlankPage: document.querySelector('#add-blank-page'),
+  deletePage: document.querySelector('#delete-page'),
   savePdf: document.querySelector('#save-pdf'),
   removeSelected: document.querySelector('#remove-selected'),
   pageList: document.querySelector('#page-list'),
@@ -39,6 +44,7 @@ const state = {
   interactablesById: new Map(),
   selectedPlacementId: null,
   nextPlacementId: 1,
+  isBusy: false,
   statusSnapshot: {
     key: 'status.ready',
     params: {},
@@ -49,18 +55,12 @@ const state = {
 els.pdfInput.addEventListener('change', async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
-  setStatusKey('status.pdfLoading', 'info', { file: file.name })
-  els.pdfInput.disabled = true
-  try {
+  await runWithBusyState(async () => {
+    setStatusKey('status.pdfLoading', 'info', { file: file.name })
     await loadPdf(file)
     setStatusKey('status.pdfLoaded', 'success', { file: file.name })
-  } catch (error) {
-    console.error(error)
-    setStatusKey('status.pdfLoadFailed', 'error', { message: error.message })
-  } finally {
-    els.pdfInput.disabled = false
-    event.target.value = ''
-  }
+  }, 'status.pdfLoadFailed')
+  event.target.value = ''
 })
 
 els.imageInput.addEventListener('change', async (event) => {
@@ -93,6 +93,40 @@ els.pageSelect.addEventListener('change', (event) => {
   setActivePage(pageNumber)
 })
 
+els.movePageUp?.addEventListener('click', async () => {
+  await moveActivePage(-1)
+})
+
+els.movePageDown?.addEventListener('click', async () => {
+  await moveActivePage(1)
+})
+
+els.addBlankPage?.addEventListener('click', async () => {
+  await addBlankPageAfterActive()
+})
+
+els.deletePage?.addEventListener('click', async () => {
+  await deleteActivePage()
+})
+
+els.appendPdfInput?.addEventListener('change', async (event) => {
+  const files = Array.from(event.target.files || [])
+  if (!files.length) return
+  await runWithBusyState(async () => {
+    setStatusKey('status.appendingPdf', 'info', { count: files.length })
+    const result = await appendPdfFiles(files)
+    if (result.appendedPages > 0) {
+      setStatusKey('status.pagesAppended', 'success', {
+        pages: result.appendedPages,
+        files: result.appendedFiles
+      })
+    } else if (result.loadedBasePdf) {
+      setStatusKey('status.pdfLoaded', 'success', { file: state.pdfName })
+    }
+  }, 'status.pdfAppendFailed')
+  event.target.value = ''
+})
+
 els.localeSelect?.addEventListener('change', (event) => {
   i18n.setLocale(event.target.value)
   applyLocaleToUi()
@@ -120,6 +154,25 @@ document.addEventListener('keydown', (event) => {
 
 function t(key, params = {}) {
   return i18n.t(key, params)
+}
+
+/**
+ * Runs an async operation while interaction controls are disabled.
+ * @param {() => Promise<void>} operation
+ * @param {string} [errorStatusKey]
+ * @returns {Promise<void>}
+ */
+async function runWithBusyState(operation, errorStatusKey = 'status.operationFailed') {
+  if (state.isBusy) return
+  setBusyState(true)
+  try {
+    await operation()
+  } catch (error) {
+    console.error(error)
+    setStatusKey(errorStatusKey, 'error', { message: error.message })
+  } finally {
+    setBusyState(false)
+  }
 }
 
 function setStatus(message, type = 'info') {
@@ -190,6 +243,16 @@ function setActivePage(pageNumber) {
   for (const [currentPage, pageInfo] of state.pageInfoByNumber.entries()) {
     pageInfo.wrapper.classList.toggle('is-active', currentPage === pageNumber)
   }
+  updatePageActionAvailability()
+}
+
+/**
+ * Enables or disables long-running UI interactions.
+ * @param {boolean} isBusy
+ */
+function setBusyState(isBusy) {
+  state.isBusy = Boolean(isBusy)
+  updateUiAvailability()
 }
 
 function clearPlacements() {
@@ -208,19 +271,112 @@ function clearPages() {
   state.pageInfoByNumber.clear()
 }
 
+/**
+ * Extracts the numeric sequence from placement ids in format `img-N`.
+ * @param {string} id
+ * @returns {number}
+ */
+function extractPlacementSequence(id) {
+  const match = /^img-(\d+)$/.exec(String(id || ''))
+  if (!match) return 0
+  return Number(match[1]) || 0
+}
+
+/**
+ * Creates a deep-copy snapshot of all placements.
+ * @returns {Array<object>}
+ */
+function getPlacementSnapshot() {
+  return Array.from(state.placementsById.values()).map((placement) => ({ ...placement }))
+}
+
+/**
+ * Normalizes placement data to avoid mutating original references.
+ * @param {Array<object>} placements
+ * @returns {Array<object>}
+ */
+function normalizePlacementSnapshot(placements) {
+  return Array.isArray(placements) ? placements.map((placement) => ({ ...placement })) : []
+}
+
+/**
+ * Restores placement overlay nodes after a page re-render.
+ * @param {Array<object>} placements
+ * @param {string|null} preferredSelectionId
+ */
+function restorePlacements(placements, preferredSelectionId = null) {
+  let maxSequence = 0
+
+  for (const placement of placements) {
+    if (!state.pageInfoByNumber.has(placement.pageNumber)) continue
+    clampPlacementToPage(placement)
+    state.placementsById.set(placement.id, placement)
+    createPlacementElement(placement)
+    maxSequence = Math.max(maxSequence, extractPlacementSequence(placement.id))
+  }
+
+  state.nextPlacementId = Math.max(1, maxSequence + 1)
+
+  if (preferredSelectionId && state.placementsById.has(preferredSelectionId)) {
+    selectPlacement(preferredSelectionId)
+    return
+  }
+  selectPlacement(null)
+}
+
+function updatePageActionAvailability() {
+  const pageCount = state.pdfProxy?.numPages || 0
+  const hasPdf = pageCount > 0
+  const canMoveUp = hasPdf && state.activePage > 1
+  const canMoveDown = hasPdf && state.activePage < pageCount
+  const canDeletePage = hasPdf && pageCount > 1
+
+  els.movePageUp.disabled = state.isBusy || !canMoveUp
+  els.movePageDown.disabled = state.isBusy || !canMoveDown
+  els.addBlankPage.disabled = state.isBusy || !hasPdf
+  els.deletePage.disabled = state.isBusy || !canDeletePage
+}
+
 function updateUiAvailability() {
   const hasPdf = Boolean(state.pdfBytes)
-  els.imageInput.disabled = !hasPdf
-  els.pageSelect.disabled = !hasPdf
-  els.savePdf.disabled = !hasPdf
-  els.removeSelected.disabled = !state.selectedPlacementId
+  els.pdfInput.disabled = state.isBusy
+  els.appendPdfInput.disabled = state.isBusy
+  els.imageInput.disabled = state.isBusy || !hasPdf
+  els.pageSelect.disabled = state.isBusy || !hasPdf
+  els.savePdf.disabled = state.isBusy || !hasPdf
+  els.removeSelected.disabled = state.isBusy || !state.selectedPlacementId
+  updatePageActionAvailability()
 }
 
 async function loadPdf(file) {
   const arrayBuffer = await file.arrayBuffer()
   state.pdfBytes = new Uint8Array(arrayBuffer)
-  const bytesForRendering = state.pdfBytes.slice()
   state.pdfName = file.name
+  state.activePage = 1
+  await hydratePdfFromState({ placements: [], activePage: 1 })
+}
+
+/**
+ * Re-renders the current PDF bytes and restores overlay placements.
+ * @param {{placements?: Array<object>, activePage?: number}} [options]
+ * @returns {Promise<void>}
+ */
+async function hydratePdfFromState(options = {}) {
+  if (!state.pdfBytes) {
+    if (state.pdfProxy) {
+      state.pdfProxy.destroy()
+      state.pdfProxy = null
+    }
+    clearPlacements()
+    clearPages()
+    updatePdfMetaText()
+    updateUiAvailability()
+    return
+  }
+
+  const placements = normalizePlacementSnapshot(options.placements || [])
+  const nextActivePage = Number(options.activePage || state.activePage || 1)
+  const previousSelectionId = state.selectedPlacementId
 
   if (state.pdfProxy) {
     state.pdfProxy.destroy()
@@ -228,14 +384,38 @@ async function loadPdf(file) {
   }
 
   // pdf.js may transfer/consume the provided Uint8Array in worker mode, so keep a dedicated copy for rendering.
+  const bytesForRendering = state.pdfBytes.slice()
   state.pdfProxy = await getDocument({ data: bytesForRendering }).promise
+
   clearPlacements()
   clearPages()
   await renderAllPages(state.pdfProxy)
   populatePageSelect(state.pdfProxy.numPages)
-  setActivePage(1)
+  setActivePage(Math.min(Math.max(nextActivePage, 1), state.pdfProxy.numPages))
+  restorePlacements(placements, previousSelectionId)
   updatePdfMetaText()
   updateUiAvailability()
+}
+
+/**
+ * Applies a structural PDF mutation and refreshes page previews.
+ * @param {(pdfDoc: any) => Promise<void> | void} mutator
+ * @param {{placements?: Array<object>, activePage?: number}} [options]
+ * @returns {Promise<void>}
+ */
+async function withPdfMutation(mutator, options = {}) {
+  if (!state.pdfBytes) {
+    throw new Error(t('errors.loadPdfFirst'))
+  }
+
+  const placements = normalizePlacementSnapshot(options.placements ?? getPlacementSnapshot())
+  const pdfDoc = await PDFDocument.load(state.pdfBytes.slice())
+  await mutator(pdfDoc)
+  state.pdfBytes = new Uint8Array(await pdfDoc.save())
+  await hydratePdfFromState({
+    placements,
+    activePage: options.activePage ?? state.activePage
+  })
 }
 
 function populatePageSelect(pageCount) {
@@ -391,6 +571,209 @@ async function addImagesToActivePage(files) {
   }
 
   return { addedCount, failedCount }
+}
+
+/**
+ * Remaps placement page numbers when moving a page.
+ * @param {Array<object>} placements
+ * @param {number} fromPage
+ * @param {number} toPage
+ * @returns {Array<object>}
+ */
+function remapPlacementsForPageMove(placements, fromPage, toPage) {
+  return placements.map((placement) => {
+    const nextPlacement = { ...placement }
+    if (placement.pageNumber === fromPage) {
+      nextPlacement.pageNumber = toPage
+      return nextPlacement
+    }
+    if (fromPage < toPage && placement.pageNumber > fromPage && placement.pageNumber <= toPage) {
+      nextPlacement.pageNumber = placement.pageNumber - 1
+      return nextPlacement
+    }
+    if (fromPage > toPage && placement.pageNumber >= toPage && placement.pageNumber < fromPage) {
+      nextPlacement.pageNumber = placement.pageNumber + 1
+      return nextPlacement
+    }
+    return nextPlacement
+  })
+}
+
+/**
+ * Remaps placement page numbers when inserting a new page after `afterPage`.
+ * @param {Array<object>} placements
+ * @param {number} afterPage
+ * @returns {Array<object>}
+ */
+function remapPlacementsForPageInsertion(placements, afterPage) {
+  return placements.map((placement) => {
+    const nextPlacement = { ...placement }
+    if (placement.pageNumber > afterPage) {
+      nextPlacement.pageNumber = placement.pageNumber + 1
+    }
+    return nextPlacement
+  })
+}
+
+/**
+ * Remaps placement page numbers when deleting a page.
+ * @param {Array<object>} placements
+ * @param {number} deletedPage
+ * @returns {Array<object>}
+ */
+function remapPlacementsForPageDeletion(placements, deletedPage) {
+  const nextPlacements = []
+  for (const placement of placements) {
+    if (placement.pageNumber === deletedPage) continue
+    if (placement.pageNumber > deletedPage) {
+      nextPlacements.push({ ...placement, pageNumber: placement.pageNumber - 1 })
+      continue
+    }
+    nextPlacements.push({ ...placement })
+  }
+  return nextPlacements
+}
+
+/**
+ * Appends all pages of additional PDF files to the current document.
+ * If no base PDF is loaded, the first file is loaded as base and remaining files are appended.
+ * @param {File[]} files
+ * @returns {Promise<{loadedBasePdf: boolean, appendedPages: number, appendedFiles: number}>}
+ */
+async function appendPdfFiles(files) {
+  const queue = Array.from(files || [])
+  let loadedBasePdf = false
+
+  if (!queue.length) {
+    return {
+      loadedBasePdf,
+      appendedPages: 0,
+      appendedFiles: 0
+    }
+  }
+
+  if (!state.pdfBytes) {
+    const firstPdf = queue.shift()
+    if (firstPdf) {
+      await loadPdf(firstPdf)
+      loadedBasePdf = true
+    }
+  }
+
+  if (!queue.length) {
+    return {
+      loadedBasePdf,
+      appendedPages: 0,
+      appendedFiles: 0
+    }
+  }
+
+  let appendedPages = 0
+
+  await withPdfMutation(
+    async (pdfDoc) => {
+      for (const file of queue) {
+        const appendBytes = new Uint8Array(await file.arrayBuffer())
+        const appendDoc = await PDFDocument.load(appendBytes)
+        const copiedPages = await pdfDoc.copyPages(appendDoc, appendDoc.getPageIndices())
+        for (const copiedPage of copiedPages) {
+          pdfDoc.addPage(copiedPage)
+        }
+        appendedPages += copiedPages.length
+      }
+    },
+    {
+      placements: getPlacementSnapshot(),
+      activePage: state.activePage
+    }
+  )
+
+  return {
+    loadedBasePdf,
+    appendedPages,
+    appendedFiles: queue.length
+  }
+}
+
+async function moveActivePage(direction) {
+  if (!state.pdfProxy) {
+    setStatusKey('status.pageMoveFailed', 'error', { message: t('errors.loadPdfFirst') })
+    return
+  }
+
+  const fromPage = state.activePage
+  const toPage = fromPage + direction
+  if (toPage < 1 || toPage > state.pdfProxy.numPages) return
+
+  await runWithBusyState(async () => {
+    const placements = remapPlacementsForPageMove(getPlacementSnapshot(), fromPage, toPage)
+    await withPdfMutation(
+      (pdfDoc) => {
+        pdfDoc.movePage(fromPage - 1, toPage - 1)
+      },
+      {
+        placements,
+        activePage: toPage
+      }
+    )
+    setStatusKey('status.pageMoved', 'success', { from: fromPage, to: toPage })
+  }, 'status.pageMoveFailed')
+}
+
+async function addBlankPageAfterActive() {
+  if (!state.pdfProxy) {
+    setStatusKey('status.pageAddFailed', 'error', { message: t('errors.loadPdfFirst') })
+    return
+  }
+
+  await runWithBusyState(async () => {
+    const insertionPoint = state.activePage
+    const placements = remapPlacementsForPageInsertion(getPlacementSnapshot(), insertionPoint)
+
+    await withPdfMutation(
+      (pdfDoc) => {
+        const referencePage = pdfDoc.getPage(insertionPoint - 1)
+        const { width, height } = referencePage ? referencePage.getSize() : { width: 595, height: 842 }
+        pdfDoc.insertPage(insertionPoint, [width, height])
+      },
+      {
+        placements,
+        activePage: insertionPoint + 1
+      }
+    )
+
+    setStatusKey('status.pageAdded', 'success', { page: insertionPoint + 1 })
+  }, 'status.pageAddFailed')
+}
+
+async function deleteActivePage() {
+  if (!state.pdfProxy) {
+    setStatusKey('status.pageDeleteFailed', 'error', { message: t('errors.loadPdfFirst') })
+    return
+  }
+
+  if (state.pdfProxy.numPages <= 1) {
+    setStatusKey('status.lastPageDeletionBlocked', 'info')
+    return
+  }
+
+  await runWithBusyState(async () => {
+    const deletedPage = state.activePage
+    const nextActivePage = Math.max(1, Math.min(deletedPage, state.pdfProxy.numPages - 1))
+    const placements = remapPlacementsForPageDeletion(getPlacementSnapshot(), deletedPage)
+
+    await withPdfMutation(
+      (pdfDoc) => {
+        pdfDoc.removePage(deletedPage - 1)
+      },
+      {
+        placements,
+        activePage: nextActivePage
+      }
+    )
+
+    setStatusKey('status.pageDeleted', 'success', { page: deletedPage })
+  }, 'status.pageDeleteFailed')
 }
 
 function countPlacementsOnPage(pageNumber) {

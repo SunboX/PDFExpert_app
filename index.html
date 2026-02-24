@@ -36,7 +36,24 @@
           </section>
 
           <section class="panel">
-            <h2 data-i18n="steps.addImage">2. Add Image</h2>
+            <h2 data-i18n="steps.managePages">2. Manage Pages</h2>
+            <div class="button-grid">
+              <button id="move-page-up" type="button" class="ghost" disabled data-i18n="buttons.movePageUp">Move page up</button>
+              <button id="move-page-down" type="button" class="ghost" disabled data-i18n="buttons.movePageDown">Move page down</button>
+            </div>
+            <div class="button-grid">
+              <button id="add-blank-page" type="button" class="ghost" disabled data-i18n="buttons.addBlankPage">Add blank page</button>
+              <button id="delete-page" type="button" class="ghost" disabled data-i18n="buttons.deletePage">Delete page</button>
+            </div>
+            <label class="file-input">
+              <span data-i18n="labels.appendPdfs">Append PDF(s)</span>
+              <input id="append-pdf-input" type="file" accept="application/pdf" multiple />
+            </label>
+            <p class="muted" data-i18n="labels.pageManageTip">Additional PDFs will be appended to the end automatically.</p>
+          </section>
+
+          <section class="panel">
+            <h2 data-i18n="steps.addImage">3. Add Image</h2>
             <div class="row">
               <label for="page-select" data-i18n="labels.page">Page</label>
               <select id="page-select" disabled></select>
@@ -54,7 +71,7 @@
           </section>
 
           <section class="panel">
-            <h2 data-i18n="steps.savePdf">3. Save PDF</h2>
+            <h2 data-i18n="steps.savePdf">4. Save PDF</h2>
             <button id="save-pdf" type="button" class="primary" disabled data-i18n="buttons.downloadEdited">
               Download edited PDF
             </button>

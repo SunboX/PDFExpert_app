@@ -47,6 +47,16 @@ test('translation bundles include footer keys', async () => {
   const en = await readFile(new URL('src/i18n/en.json', root), 'utf8')
   const de = await readFile(new URL('src/i18n/de.json', root), 'utf8')
 
+  assert.match(en, /"managePages"/)
+  assert.match(en, /"appendPdfs"/)
+  assert.match(en, /"pagesAppended"/)
+  assert.match(en, /"movePageUp"/)
+
+  assert.match(de, /"managePages"/)
+  assert.match(de, /"appendPdfs"/)
+  assert.match(de, /"pagesAppended"/)
+  assert.match(de, /"movePageUp"/)
+
   assert.match(en, /"footer"/)
   assert.match(en, /"responsible"/)
   assert.match(en, /"contact"/)
