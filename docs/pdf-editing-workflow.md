@@ -15,12 +15,14 @@
 ## 3) Add Image
 - Select the target page from **Seite**.
 - Click **Bild(er) auswählen** and choose one or multiple images.
-- The image is inserted centered on the selected page.
+- Or drag image files from your desktop and drop them directly onto the target PDF page preview.
+- Selected uploads are inserted centered on the selected page; dropped files are inserted at the drop position.
 
 ## 4) Position And Scale
 - Click image overlay to select it.
 - Drag image to reposition it.
 - Use the corner handle to scale proportionally.
+- Use **Links drehen** / **Rechts drehen** to rotate the selected image in 90° steps.
 - Use **Ausgewähltes Bild löschen** or `Delete`/`Backspace` to remove it.
 
 ## 5) Export
