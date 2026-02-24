@@ -21,13 +21,15 @@
     "appendPdfs": "Append PDF(s)",
     "pageManageTip": "Upload additional PDFs to append all their pages to the end.",
     "selectImages": "Select image(s)",
-    "imageTip": "Tip: Click an image, then drag it or resize it from the corner."
+    "imageTip": "Tip: Drop images directly onto any page, then drag, resize from the corner, or rotate."
   },
   "buttons": {
     "movePageUp": "Move page up",
     "movePageDown": "Move page down",
     "addBlankPage": "Add blank page",
     "deletePage": "Delete page",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
     "removeSelected": "Delete selected image",
     "downloadEdited": "Download edited PDF"
   },
@@ -51,6 +53,9 @@
     "imagesAddedMany": "{{count}} images added.",
     "imagesAddedPartial": "{{added}} image(s) added, {{failed}} failed.",
     "imageAddFailed": "Could not add image: {{message}}",
+    "imageRotatedLeft": "Image rotated left.",
+    "imageRotatedRight": "Image rotated right.",
+    "imageRotateFailed": "Could not rotate image: {{message}}",
     "pdfSaveFailed": "Could not save PDF: {{message}}",
     "imageRemoved": "Image removed.",
     "pdfSaved": "PDF saved: {{file}}"
@@ -63,6 +68,7 @@
   "errors": {
     "loadPdfFirst": "Please load a PDF first.",
     "activePageMissing": "Could not determine the active page.",
+    "dropImagesOnly": "Only image files can be dropped here.",
     "noImagesAdded": "None of the selected images could be added.",
     "fileReadFailed": "File could not be read.",
     "imageLoadFailed": "Image could not be loaded."

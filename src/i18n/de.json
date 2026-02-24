@@ -21,13 +21,15 @@
     "appendPdfs": "PDF(s) anhängen",
     "pageManageTip": "Weitere PDFs hochladen, um deren Seiten automatisch hinten anzuhängen.",
     "selectImages": "Bild(er) auswählen",
-    "imageTip": "Tipp: Bild anklicken, dann verschieben oder an der Ecke skalieren."
+    "imageTip": "Tipp: Bilder direkt auf eine Seite ziehen und ablegen, dann verschieben, an der Ecke skalieren oder drehen."
   },
   "buttons": {
     "movePageUp": "Seite nach oben",
     "movePageDown": "Seite nach unten",
     "addBlankPage": "Leere Seite hinzufügen",
     "deletePage": "Seite löschen",
+    "rotateLeft": "Links drehen",
+    "rotateRight": "Rechts drehen",
     "removeSelected": "Ausgewähltes Bild löschen",
     "downloadEdited": "Bearbeitete PDF herunterladen"
   },
@@ -51,6 +53,9 @@
     "imagesAddedMany": "{{count}} Bilder hinzugefügt.",
     "imagesAddedPartial": "{{added}} Bild(er) hinzugefügt, {{failed}} fehlgeschlagen.",
     "imageAddFailed": "Bild konnte nicht hinzugefügt werden: {{message}}",
+    "imageRotatedLeft": "Bild nach links gedreht.",
+    "imageRotatedRight": "Bild nach rechts gedreht.",
+    "imageRotateFailed": "Bild konnte nicht gedreht werden: {{message}}",
     "pdfSaveFailed": "PDF konnte nicht gespeichert werden: {{message}}",
     "imageRemoved": "Bild entfernt.",
     "pdfSaved": "PDF gespeichert: {{file}}"
@@ -63,6 +68,7 @@
   "errors": {
     "loadPdfFirst": "Bitte zuerst eine PDF laden.",
     "activePageMissing": "Aktive Seite konnte nicht ermittelt werden.",
+    "dropImagesOnly": "Hier können nur Bilddateien abgelegt werden.",
     "noImagesAdded": "Keines der ausgewählten Bilder konnte hinzugefügt werden.",
     "fileReadFailed": "Datei konnte nicht gelesen werden.",
     "imageLoadFailed": "Bild konnte nicht geladen werden."

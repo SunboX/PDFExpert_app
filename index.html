@@ -62,7 +62,15 @@
               <span data-i18n="labels.selectImages">Select image(s)</span>
               <input id="image-input" type="file" accept="image/*" multiple disabled />
             </label>
-            <p class="muted" data-i18n="labels.imageTip">Tip: Click an image, then drag it or resize it from the corner.</p>
+            <p class="muted" data-i18n="labels.imageTip">Tip: Click an image, then drag it, resize it from the corner, or rotate it.</p>
+            <div class="button-grid image-action-grid">
+              <button id="rotate-selected-left" type="button" class="ghost" disabled data-i18n="buttons.rotateLeft">
+                Rotate left
+              </button>
+              <button id="rotate-selected-right" type="button" class="ghost" disabled data-i18n="buttons.rotateRight">
+                Rotate right
+              </button>
+            </div>
             <div class="button-row">
               <button id="remove-selected" type="button" class="ghost" disabled data-i18n="buttons.removeSelected">
                 Delete selected image

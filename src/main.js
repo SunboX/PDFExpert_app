@@ -2,6 +2,7 @@ import { PDFDocument } from '/src/vendor/pdf-lib/pdf-lib.esm.min.js'
 import { GlobalWorkerOptions, getDocument } from '/src/vendor/pdfjs-dist/build/pdf.mjs'
 import { AppApiEndpointUtils } from './AppApiEndpointUtils.mjs'
 import { I18n } from './I18n.mjs'
+import { WebMcpIntegration } from './WebMcpIntegration.mjs'
 
 const interact = globalThis.interact
 if (typeof interact !== 'function') {
@@ -27,6 +28,8 @@ const els = {
   addBlankPage: document.querySelector('#add-blank-page'),
   deletePage: document.querySelector('#delete-page'),
   savePdf: document.querySelector('#save-pdf'),
+  rotateSelectedLeft: document.querySelector('#rotate-selected-left'),
+  rotateSelectedRight: document.querySelector('#rotate-selected-right'),
   removeSelected: document.querySelector('#remove-selected'),
   pageList: document.querySelector('#page-list'),
   status: document.querySelector('#status'),
@@ -51,6 +54,8 @@ const state = {
     type: 'info'
   }
 }
+
+let webMcpIntegration = null
 
 els.pdfInput.addEventListener('change', async (event) => {
   const file = event.target.files?.[0]
@@ -141,6 +146,14 @@ els.savePdf.addEventListener('click', async () => {
   }
 })
 
+els.rotateSelectedLeft?.addEventListener('click', async () => {
+  await rotateSelectedPlacement('left')
+})
+
+els.rotateSelectedRight?.addEventListener('click', async () => {
+  await rotateSelectedPlacement('right')
+})
+
 els.removeSelected.addEventListener('click', () => {
   removeSelectedPlacement()
 })
@@ -157,19 +170,38 @@ function t(key, params = {}) {
 }
 
 /**
+ * Schedules a WebMCP context refresh when integration is active.
+ * @returns {void}
+ */
+function refreshWebMcpContext() {
+  webMcpIntegration?.refresh()
+}
+
+/**
  * Runs an async operation while interaction controls are disabled.
  * @param {() => Promise<void>} operation
  * @param {string} [errorStatusKey]
- * @returns {Promise<void>}
+ * @param {{propagateError?: boolean}} [options]
+ * @returns {Promise<any>}
  */
-async function runWithBusyState(operation, errorStatusKey = 'status.operationFailed') {
-  if (state.isBusy) return
+async function runWithBusyState(operation, errorStatusKey = 'status.operationFailed', options = {}) {
+  const { propagateError = false } = options
+  if (state.isBusy) {
+    if (propagateError) {
+      throw new Error('Another operation is currently running.')
+    }
+    return null
+  }
   setBusyState(true)
   try {
-    await operation()
+    return await operation()
   } catch (error) {
     console.error(error)
     setStatusKey(errorStatusKey, 'error', { message: error.message })
+    if (propagateError) {
+      throw error
+    }
+    return null
   } finally {
     setBusyState(false)
   }
@@ -217,6 +249,7 @@ function applyLocaleToUi() {
   }
   updatePageLabels()
   refreshStatusText()
+  refreshWebMcpContext()
 }
 
 async function updateAppVersionText() {
@@ -263,6 +296,8 @@ function clearPlacements() {
   state.placementsById.clear()
   state.selectedPlacementId = null
   state.nextPlacementId = 1
+  els.rotateSelectedLeft.disabled = true
+  els.rotateSelectedRight.disabled = true
   els.removeSelected.disabled = true
 }
 
@@ -339,13 +374,17 @@ function updatePageActionAvailability() {
 
 function updateUiAvailability() {
   const hasPdf = Boolean(state.pdfBytes)
+  const hasSelection = Boolean(state.selectedPlacementId)
   els.pdfInput.disabled = state.isBusy
   els.appendPdfInput.disabled = state.isBusy
   els.imageInput.disabled = state.isBusy || !hasPdf
   els.pageSelect.disabled = state.isBusy || !hasPdf
   els.savePdf.disabled = state.isBusy || !hasPdf
-  els.removeSelected.disabled = state.isBusy || !state.selectedPlacementId
+  els.rotateSelectedLeft.disabled = state.isBusy || !hasSelection
+  els.rotateSelectedRight.disabled = state.isBusy || !hasSelection
+  els.removeSelected.disabled = state.isBusy || !hasSelection
   updatePageActionAvailability()
+  refreshWebMcpContext()
 }
 
 async function loadPdf(file) {
@@ -485,6 +524,12 @@ async function renderAllPages(pdfProxy) {
       setActivePage(pageNumber)
     })
 
+    setupPageImageDropTarget({
+      pageNumber,
+      wrapper,
+      overlay
+    })
+
     stage.append(canvas, overlay)
     wrapper.append(pageLabel, stage)
     els.pageList.append(wrapper)
@@ -518,17 +563,143 @@ async function renderPageToCanvas(page, canvas, viewport) {
   await renderTask.promise
 }
 
+/**
+ * Wires image file drag-and-drop handling for a rendered page.
+ * @param {{pageNumber: number, wrapper: HTMLElement, overlay: HTMLElement}} options
+ * @returns {void}
+ */
+function setupPageImageDropTarget(options) {
+  const { pageNumber, wrapper, overlay } = options
+  let dragDepth = 0
+
+  overlay.addEventListener('dragenter', (event) => {
+    if (!hasFileDropPayload(event.dataTransfer)) return
+    event.preventDefault()
+    dragDepth += 1
+    wrapper.classList.add('is-drop-target')
+  })
+
+  overlay.addEventListener('dragover', (event) => {
+    if (!hasFileDropPayload(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    wrapper.classList.add('is-drop-target')
+  })
+
+  overlay.addEventListener('dragleave', (event) => {
+    if (!hasFileDropPayload(event.dataTransfer)) return
+    dragDepth = Math.max(dragDepth - 1, 0)
+    if (dragDepth === 0) {
+      wrapper.classList.remove('is-drop-target')
+    }
+  })
+
+  overlay.addEventListener('drop', async (event) => {
+    if (!hasFileDropPayload(event.dataTransfer)) return
+    event.preventDefault()
+    dragDepth = 0
+    wrapper.classList.remove('is-drop-target')
+    setActivePage(pageNumber)
+
+    const imageFiles = getImageFilesFromDataTransfer(event.dataTransfer)
+    if (!imageFiles.length) {
+      setStatusKey('status.imageAddFailed', 'error', { message: t('errors.dropImagesOnly') })
+      return
+    }
+
+    try {
+      const dropPosition = getDropPositionWithinOverlay(event, overlay)
+      const result = await addImagesToPage(imageFiles, {
+        pageNumber,
+        anchorX: dropPosition.x,
+        anchorY: dropPosition.y
+      })
+
+      if (result.failedCount > 0) {
+        setStatusKey(result.addedCount > 0 ? 'status.imagesAddedPartial' : 'status.imageAddFailed', result.addedCount > 0 ? 'info' : 'error', {
+          added: result.addedCount,
+          failed: result.failedCount,
+          message: t('errors.noImagesAdded')
+        })
+      } else if (result.addedCount === 1) {
+        setStatusKey('status.imageAddedOne', 'success', { file: imageFiles[0].name })
+      } else {
+        setStatusKey('status.imagesAddedMany', 'success', { count: result.addedCount })
+      }
+    } catch (error) {
+      console.error(error)
+      setStatusKey('status.imageAddFailed', 'error', { message: error.message })
+    }
+  })
+}
+
+/**
+ * Returns true when the current drag payload includes files.
+ * @param {DataTransfer | null} dataTransfer
+ * @returns {boolean}
+ */
+function hasFileDropPayload(dataTransfer) {
+  if (!dataTransfer) return false
+  return Array.from(dataTransfer.types || []).includes('Files')
+}
+
+/**
+ * Checks whether a dropped file is a supported image type.
+ * @param {File} file
+ * @returns {boolean}
+ */
+function isImageFile(file) {
+  if (!file) return false
+  if (String(file.type || '').startsWith('image/')) return true
+  return /\.(avif|bmp|gif|heic|heif|jpe?g|png|svg|webp)$/i.test(String(file.name || ''))
+}
+
+/**
+ * Extracts image files from a drop payload.
+ * @param {DataTransfer | null} dataTransfer
+ * @returns {File[]}
+ */
+function getImageFilesFromDataTransfer(dataTransfer) {
+  if (!dataTransfer) return []
+  return Array.from(dataTransfer.files || []).filter((file) => isImageFile(file))
+}
+
+/**
+ * Computes drop coordinates inside a page overlay.
+ * @param {DragEvent} event
+ * @param {HTMLElement} overlay
+ * @returns {{x: number, y: number}}
+ */
+function getDropPositionWithinOverlay(event, overlay) {
+  const bounds = overlay.getBoundingClientRect()
+  return {
+    x: event.clientX - bounds.left,
+    y: event.clientY - bounds.top
+  }
+}
+
 async function addImageToActivePage(file) {
+  await addImageToPage(file, { pageNumber: state.activePage })
+}
+
+/**
+ * Adds one image overlay to a target page.
+ * @param {File} file
+ * @param {{pageNumber?: number, anchorX?: number, anchorY?: number}} [options]
+ * @returns {Promise<void>}
+ */
+async function addImageToPage(file, options = {}) {
   if (!state.pdfProxy) {
     throw new Error(t('errors.loadPdfFirst'))
   }
 
-  const pageInfo = state.pageInfoByNumber.get(state.activePage)
+  const requestedPage = Number.isFinite(options.pageNumber) ? Math.trunc(options.pageNumber) : state.activePage
+  const pageInfo = state.pageInfoByNumber.get(requestedPage)
   if (!pageInfo) {
     throw new Error(t('errors.activePageMissing'))
   }
 
-  const existingOnPage = countPlacementsOnPage(state.activePage)
+  const existingOnPage = countPlacementsOnPage(requestedPage)
 
   const rawDataUrl = await fileToDataUrl(file)
   const normalized = await normalizeImageToPng(rawDataUrl)
@@ -542,12 +713,16 @@ async function addImageToActivePage(file) {
     width = height * (normalized.width / normalized.height)
   }
 
+  const hasAnchor = Number.isFinite(options.anchorX) && Number.isFinite(options.anchorY)
+  const baseX = hasAnchor ? options.anchorX - width / 2 : (pageInfo.renderedWidth - width) / 2
+  const baseY = hasAnchor ? options.anchorY - height / 2 : (pageInfo.renderedHeight - height) / 2
+
   const placement = {
     id: `img-${state.nextPlacementId++}`,
-    pageNumber: state.activePage,
+    pageNumber: requestedPage,
     dataUrl: normalized.dataUrl,
-    x: (pageInfo.renderedWidth - width) / 2,
-    y: (pageInfo.renderedHeight - height) / 2,
+    x: baseX,
+    y: baseY,
     width,
     height
   }
@@ -564,21 +739,23 @@ async function addImageToActivePage(file) {
   selectPlacement(placement.id)
 }
 
-async function addImagesToActivePage(files) {
-  if (!state.pdfProxy) {
-    throw new Error(t('errors.loadPdfFirst'))
-  }
-
+/**
+ * Adds multiple images to a target page.
+ * @param {File[]} files
+ * @param {{pageNumber?: number, anchorX?: number, anchorY?: number}} [options]
+ * @returns {Promise<{addedCount: number, failedCount: number}>}
+ */
+async function addImagesToPage(files, options = {}) {
   let addedCount = 0
   let failedCount = 0
 
   for (const file of files) {
     try {
-      await addImageToActivePage(file)
+      await addImageToPage(file, options)
       addedCount += 1
     } catch (error) {
       failedCount += 1
-      console.error(`Bild konnte nicht hinzugefügt werden: ${file.name}`, error)
+      console.error(`Could not add image file "${file.name}".`, error)
     }
   }
 
@@ -587,6 +764,10 @@ async function addImagesToActivePage(files) {
   }
 
   return { addedCount, failedCount }
+}
+
+async function addImagesToActivePage(files) {
+  return addImagesToPage(files, { pageNumber: state.activePage })
 }
 
 /**
@@ -809,7 +990,7 @@ function countPlacementsOnPage(pageNumber) {
 function createPlacementElement(placement) {
   const pageInfo = state.pageInfoByNumber.get(placement.pageNumber)
   if (!pageInfo) return
-  const aspectRatio = placement.width / placement.height
+  let aspectRatio = placement.width / placement.height
 
   const node = document.createElement('div')
   node.className = 'placement'
@@ -859,6 +1040,12 @@ function createPlacementElement(placement) {
       listeners: {
         start() {
           selectPlacement(placement.id)
+          const current = state.placementsById.get(placement.id)
+          if (!current || current.height <= 0) {
+            aspectRatio = 1
+            return
+          }
+          aspectRatio = current.width / current.height
         },
         move(event) {
           const current = state.placementsById.get(placement.id)
@@ -904,6 +1091,57 @@ function applyPlacementStyle(placement) {
   node.style.transform = `translate(${placement.x}px, ${placement.y}px)`
 }
 
+/**
+ * Updates the rendered preview image for a placement.
+ * @param {object} placement
+ */
+function applyPlacementImageSource(placement) {
+  const pageInfo = state.pageInfoByNumber.get(placement.pageNumber)
+  if (!pageInfo) return
+  const image = pageInfo.overlay.querySelector(`[data-id="${placement.id}"] img`)
+  if (!image) return
+  image.src = placement.dataUrl
+}
+
+/**
+ * Rotates the currently selected image placement by a quarter turn.
+ * @param {'left' | 'right'} direction
+ * @returns {Promise<void>}
+ */
+async function rotateSelectedPlacement(direction) {
+  const placementId = state.selectedPlacementId
+  if (!placementId) return
+
+  const placement = state.placementsById.get(placementId)
+  if (!placement) return
+
+  const quarterTurns = direction === 'left' ? -1 : direction === 'right' ? 1 : 0
+  if (quarterTurns === 0) return
+
+  await runWithBusyState(async () => {
+    const previousCenterX = placement.x + placement.width / 2
+    const previousCenterY = placement.y + placement.height / 2
+    const rotated = await rotateImageDataUrlByQuarterTurns(placement.dataUrl, quarterTurns)
+
+    placement.dataUrl = rotated.dataUrl
+
+    if (Math.abs(quarterTurns) % 2 === 1) {
+      const previousWidth = placement.width
+      const previousHeight = placement.height
+      placement.width = previousHeight
+      placement.height = previousWidth
+      placement.x = previousCenterX - placement.width / 2
+      placement.y = previousCenterY - placement.height / 2
+    }
+
+    clampPlacementToPage(placement)
+    applyPlacementStyle(placement)
+    applyPlacementImageSource(placement)
+
+    setStatusKey(direction === 'left' ? 'status.imageRotatedLeft' : 'status.imageRotatedRight', 'success')
+  }, 'status.imageRotateFailed')
+}
+
 function selectPlacement(placementId) {
   state.selectedPlacementId = placementId
   for (const pageInfo of state.pageInfoByNumber.values()) {
@@ -938,7 +1176,11 @@ function removeSelectedPlacement() {
   setStatusKey('status.imageRemoved', 'info')
 }
 
-async function saveEditedPdf() {
+/**
+ * Builds the current edited PDF output without triggering a download.
+ * @returns {Promise<{bytes: Uint8Array, fileName: string}>}
+ */
+async function createEditedPdfExport() {
   if (!state.pdfBytes) {
     throw new Error(t('errors.loadPdfFirst'))
   }
@@ -967,9 +1209,16 @@ async function saveEditedPdf() {
   }
 
   const outputBytes = await pdfDoc.save()
-  const outputFileName = buildOutputFileName(state.pdfName)
-  downloadBytes(outputBytes, outputFileName)
-  setStatusKey('status.pdfSaved', 'success', { file: outputFileName })
+  return {
+    bytes: outputBytes,
+    fileName: buildOutputFileName(state.pdfName)
+  }
+}
+
+async function saveEditedPdf() {
+  const exportedPdf = await createEditedPdfExport()
+  downloadBytes(exportedPdf.bytes, exportedPdf.fileName)
+  setStatusKey('status.pdfSaved', 'success', { file: exportedPdf.fileName })
 }
 
 async function getEmbeddedImage(pdfDoc, imageCache, dataUrl) {
@@ -1032,9 +1281,482 @@ async function normalizeImageToPng(dataUrl) {
   }
 }
 
+/**
+ * Rotates an image data URL by 90° increments and normalizes the result as PNG.
+ * @param {string} dataUrl
+ * @param {number} quarterTurns
+ * @returns {Promise<{dataUrl: string, width: number, height: number}>}
+ */
+async function rotateImageDataUrlByQuarterTurns(dataUrl, quarterTurns) {
+  const normalizedQuarterTurns = normalizeQuarterTurns(quarterTurns)
+  if (normalizedQuarterTurns === 0) {
+    return normalizeImageToPng(dataUrl)
+  }
+
+  const image = await loadImageFromDataUrl(dataUrl)
+  const isQuarterTurn = Math.abs(normalizedQuarterTurns) % 2 === 1
+  const canvas = document.createElement('canvas')
+  canvas.width = isQuarterTurn ? image.naturalHeight : image.naturalWidth
+  canvas.height = isQuarterTurn ? image.naturalWidth : image.naturalHeight
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error(t('errors.imageLoadFailed'))
+  }
+
+  context.translate(canvas.width / 2, canvas.height / 2)
+  context.rotate((normalizedQuarterTurns * Math.PI) / 2)
+  context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2)
+
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    width: canvas.width,
+    height: canvas.height
+  }
+}
+
+/**
+ * Normalizes a quarter-turn value into the range -1..2.
+ * @param {number} quarterTurns
+ * @returns {number}
+ */
+function normalizeQuarterTurns(quarterTurns) {
+  if (!Number.isFinite(quarterTurns)) return 0
+  const roundedQuarterTurns = Math.trunc(quarterTurns)
+  const normalized = ((roundedQuarterTurns % 4) + 4) % 4
+  return normalized > 2 ? normalized - 4 : normalized
+}
+
 async function dataUrlToArrayBuffer(dataUrl) {
   const response = await fetch(dataUrl)
   return response.arrayBuffer()
+}
+
+/**
+ * Converts a Blob into a data URL string.
+ * @param {Blob} blob
+ * @returns {Promise<string>}
+ */
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('Could not convert blob to data URL.'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+/**
+ * Converts binary data to a typed data URL.
+ * @param {Uint8Array} bytes
+ * @param {string} mimeType
+ * @returns {Promise<string>}
+ */
+async function bytesToDataUrl(bytes, mimeType) {
+  return blobToDataUrl(new Blob([bytes], { type: mimeType }))
+}
+
+/**
+ * Creates a File object from a data URL.
+ * @param {string} dataUrl
+ * @param {string} fileName
+ * @param {string} fallbackMimeType
+ * @returns {Promise<File>}
+ */
+async function dataUrlToFile(dataUrl, fileName, fallbackMimeType) {
+  const response = await fetch(dataUrl)
+  if (!response.ok) {
+    throw new Error(`Could not read data URL for "${fileName}".`)
+  }
+  const blob = await response.blob()
+  const mimeType = blob.type || fallbackMimeType
+  return new File([blob], fileName, { type: mimeType })
+}
+
+/**
+ * Returns placement data in a stable deterministic order.
+ * @returns {Array<object>}
+ */
+function getSortedPlacementSnapshot() {
+  return Array.from(state.placementsById.values())
+    .map((placement) => ({
+      id: placement.id,
+      pageNumber: placement.pageNumber,
+      x: placement.x,
+      y: placement.y,
+      width: placement.width,
+      height: placement.height
+    }))
+    .sort((a, b) => {
+      if (a.pageNumber !== b.pageNumber) {
+        return a.pageNumber - b.pageNumber
+      }
+      return extractPlacementSequence(a.id) - extractPlacementSequence(b.id)
+    })
+}
+
+/**
+ * Builds a serializable state snapshot for WebMCP tools.
+ * @returns {object}
+ */
+function getEditorStateSnapshot() {
+  const pageCount = state.pdfProxy?.numPages || 0
+  return {
+    hasPdf: Boolean(state.pdfBytes),
+    pdfName: state.pdfName,
+    pageCount,
+    activePage: pageCount > 0 ? state.activePage : null,
+    selectedPlacementId: state.selectedPlacementId,
+    isBusy: state.isBusy,
+    locale: i18n.locale,
+    placements: getSortedPlacementSnapshot()
+  }
+}
+
+/**
+ * Locates a rendered placement node.
+ * @param {string} placementId
+ * @returns {HTMLElement | null}
+ */
+function getPlacementNode(placementId) {
+  for (const pageInfo of state.pageInfoByNumber.values()) {
+    const node = pageInfo.overlay.querySelector(`[data-id="${placementId}"]`)
+    if (node) return node
+  }
+  return null
+}
+
+/**
+ * Ensures a placement exists and returns it.
+ * @param {string} placementId
+ * @returns {object}
+ */
+function getPlacementByIdOrThrow(placementId) {
+  const placement = state.placementsById.get(placementId)
+  if (!placement) {
+    throw new Error(`Image placement "${placementId}" does not exist.`)
+  }
+  return placement
+}
+
+/**
+ * Moves a placement node to another page overlay and updates geometry.
+ * @param {string} placementId
+ * @param {number} pageNumber
+ * @returns {void}
+ */
+function movePlacementNodeToPage(placementId, pageNumber) {
+  const targetPageInfo = state.pageInfoByNumber.get(pageNumber)
+  if (!targetPageInfo) {
+    throw new Error(`Page ${pageNumber} is not available.`)
+  }
+  const node = getPlacementNode(placementId)
+  if (!node) {
+    throw new Error(`Could not find placement node "${placementId}".`)
+  }
+  targetPageInfo.overlay.append(node)
+}
+
+/**
+ * Updates placement geometry and page assignment from tool input.
+ * @param {{
+ *   placementId: string,
+ *   pageNumber?: number,
+ *   x?: number,
+ *   y?: number,
+ *   width?: number,
+ *   height?: number
+ * }} payload
+ * @returns {object}
+ */
+function updatePlacementFromTool(payload) {
+  const placement = getPlacementByIdOrThrow(payload.placementId)
+  const hasGeometryInput =
+    Number.isFinite(payload.x) ||
+    Number.isFinite(payload.y) ||
+    Number.isFinite(payload.width) ||
+    Number.isFinite(payload.height) ||
+    Number.isFinite(payload.pageNumber)
+
+  if (!hasGeometryInput) {
+    throw new Error('Provide at least one numeric field to update the image overlay.')
+  }
+
+  if (Number.isFinite(payload.pageNumber)) {
+    const normalizedPageNumber = Math.trunc(payload.pageNumber)
+    if (!state.pageInfoByNumber.has(normalizedPageNumber)) {
+      throw new Error(`Page ${normalizedPageNumber} is out of range.`)
+    }
+    if (placement.pageNumber !== normalizedPageNumber) {
+      placement.pageNumber = normalizedPageNumber
+      movePlacementNodeToPage(payload.placementId, normalizedPageNumber)
+    }
+  }
+
+  if (Number.isFinite(payload.x)) placement.x = payload.x
+  if (Number.isFinite(payload.y)) placement.y = payload.y
+  if (Number.isFinite(payload.width)) placement.width = payload.width
+  if (Number.isFinite(payload.height)) placement.height = payload.height
+
+  clampPlacementToPage(placement)
+  applyPlacementStyle(placement)
+  return { ...placement }
+}
+
+/**
+ * Removes a placement by id regardless of current selection.
+ * @param {string} placementId
+ * @returns {void}
+ */
+function removePlacementById(placementId) {
+  const previousSelectionId = state.selectedPlacementId
+  getPlacementByIdOrThrow(placementId)
+  selectPlacement(placementId)
+  removeSelectedPlacement()
+  if (previousSelectionId && previousSelectionId !== placementId && state.placementsById.has(previousSelectionId)) {
+    selectPlacement(previousSelectionId)
+  }
+}
+
+/**
+ * Creates operation callbacks consumed by WebMCP integration.
+ * @returns {object}
+ */
+function createWebMcpOperations() {
+  return {
+    getEditorState() {
+      return getEditorStateSnapshot()
+    },
+    setLocale(locale) {
+      const allowedLocales = new Set(['en', 'de'])
+      if (!allowedLocales.has(locale)) {
+        throw new Error(`Unsupported locale "${locale}".`)
+      }
+      i18n.setLocale(locale)
+      applyLocaleToUi()
+      return {
+        locale: i18n.locale,
+        editorState: getEditorStateSnapshot()
+      }
+    },
+    async loadPdfFromDataUrl(payload) {
+      const normalizedFileName = String(payload.fileName || 'document.pdf').trim() || 'document.pdf'
+      const fileName = normalizedFileName.toLowerCase().endsWith('.pdf') ? normalizedFileName : `${normalizedFileName}.pdf`
+      const file = await dataUrlToFile(payload.pdfDataUrl, fileName, 'application/pdf')
+      await runWithBusyState(
+        async () => {
+          setStatusKey('status.pdfLoading', 'info', { file: file.name })
+          await loadPdf(file)
+          setStatusKey('status.pdfLoaded', 'success', { file: file.name })
+        },
+        'status.pdfLoadFailed',
+        { propagateError: true }
+      )
+      return getEditorStateSnapshot()
+    },
+    async appendPdfDocuments(payload) {
+      const files = await Promise.all(
+        payload.documents.map(async (documentEntry, index) => {
+          const fallbackName = `append-${index + 1}.pdf`
+          const normalizedFileName = String(documentEntry.fileName || fallbackName).trim() || fallbackName
+          const fileName = normalizedFileName.toLowerCase().endsWith('.pdf') ? normalizedFileName : `${normalizedFileName}.pdf`
+          return dataUrlToFile(documentEntry.pdfDataUrl, fileName, 'application/pdf')
+        })
+      )
+
+      const result = await runWithBusyState(
+        async () => {
+          setStatusKey('status.appendingPdf', 'info', { count: files.length })
+          const appendResult = await appendPdfFiles(files)
+          if (appendResult.appendedPages > 0) {
+            setStatusKey('status.pagesAppended', 'success', {
+              pages: appendResult.appendedPages,
+              files: appendResult.appendedFiles
+            })
+          } else if (appendResult.loadedBasePdf) {
+            setStatusKey('status.pdfLoaded', 'success', { file: state.pdfName })
+          }
+          return appendResult
+        },
+        'status.pdfAppendFailed',
+        { propagateError: true }
+      )
+
+      return {
+        ...result,
+        editorState: getEditorStateSnapshot()
+      }
+    },
+    selectActivePage(pageNumber) {
+      if (!state.pdfProxy) {
+        throw new Error(t('errors.loadPdfFirst'))
+      }
+      const normalizedPageNumber = Math.trunc(pageNumber)
+      if (!Number.isFinite(normalizedPageNumber) || normalizedPageNumber < 1 || normalizedPageNumber > state.pdfProxy.numPages) {
+        throw new Error(`Page ${pageNumber} is out of range.`)
+      }
+      setActivePage(normalizedPageNumber)
+      return getEditorStateSnapshot()
+    },
+    async moveActivePage(direction) {
+      if (!state.pdfProxy) {
+        throw new Error(t('errors.loadPdfFirst'))
+      }
+      const normalizedDirection = direction === 'up' ? -1 : direction === 'down' ? 1 : 0
+      if (normalizedDirection === 0) {
+        throw new Error(`Unsupported direction "${direction}".`)
+      }
+      const previousPage = state.activePage
+      await moveActivePage(normalizedDirection)
+      if (state.activePage === previousPage) {
+        throw new Error(`Page ${previousPage} cannot be moved ${direction}.`)
+      }
+      return getEditorStateSnapshot()
+    },
+    async addBlankPageAfterActive() {
+      if (!state.pdfProxy) {
+        throw new Error(t('errors.loadPdfFirst'))
+      }
+      const previousPageCount = state.pdfProxy.numPages
+      await addBlankPageAfterActive()
+      const nextPageCount = state.pdfProxy?.numPages || 0
+      if (nextPageCount <= previousPageCount) {
+        throw new Error('No blank page was added.')
+      }
+      return getEditorStateSnapshot()
+    },
+    async deleteActivePage() {
+      if (!state.pdfProxy) {
+        throw new Error(t('errors.loadPdfFirst'))
+      }
+      if (state.pdfProxy.numPages <= 1) {
+        throw new Error('At least one page must remain in the PDF.')
+      }
+      const previousPageCount = state.pdfProxy.numPages
+      await deleteActivePage()
+      const nextPageCount = state.pdfProxy?.numPages || 0
+      if (nextPageCount >= previousPageCount) {
+        throw new Error('The active page could not be deleted.')
+      }
+      return getEditorStateSnapshot()
+    },
+    async addImageOverlays(payload) {
+      if (!state.pdfProxy) {
+        throw new Error(t('errors.loadPdfFirst'))
+      }
+      if (Number.isFinite(payload.pageNumber)) {
+        const normalizedPageNumber = Math.trunc(payload.pageNumber)
+        if (!state.pageInfoByNumber.has(normalizedPageNumber)) {
+          throw new Error(`Page ${payload.pageNumber} is out of range.`)
+        }
+        setActivePage(normalizedPageNumber)
+      }
+
+      const files = await Promise.all(
+        payload.images.map(async (imageEntry, index) => {
+          const fallbackName = `image-${index + 1}.png`
+          const normalizedFileName = String(imageEntry.fileName || fallbackName).trim() || fallbackName
+          return dataUrlToFile(imageEntry.imageDataUrl, normalizedFileName, 'image/png')
+        })
+      )
+
+      const result = await runWithBusyState(
+        async () => addImagesToActivePage(files),
+        'status.imageAddFailed',
+        { propagateError: true }
+      )
+
+      if (result.failedCount > 0) {
+        setStatusKey(result.addedCount > 0 ? 'status.imagesAddedPartial' : 'status.imageAddFailed', result.addedCount > 0 ? 'info' : 'error', {
+          added: result.addedCount,
+          failed: result.failedCount,
+          message: t('errors.noImagesAdded')
+        })
+      } else if (result.addedCount === 1) {
+        setStatusKey('status.imageAddedOne', 'success', { file: files[0].name })
+      } else {
+        setStatusKey('status.imagesAddedMany', 'success', { count: result.addedCount })
+      }
+
+      return {
+        ...result,
+        editorState: getEditorStateSnapshot()
+      }
+    },
+    selectImageOverlay(placementId) {
+      getPlacementByIdOrThrow(placementId)
+      selectPlacement(placementId)
+      return getEditorStateSnapshot()
+    },
+    updateImageOverlay(payload) {
+      const updatedPlacement = updatePlacementFromTool(payload)
+      if (state.selectedPlacementId === payload.placementId) {
+        selectPlacement(payload.placementId)
+      }
+      return {
+        placement: updatedPlacement,
+        editorState: getEditorStateSnapshot()
+      }
+    },
+    async rotateSelectedImage(direction) {
+      if (!state.selectedPlacementId) {
+        throw new Error('No image overlay is selected.')
+      }
+      if (direction !== 'left' && direction !== 'right') {
+        throw new Error(`Unsupported direction "${direction}".`)
+      }
+      const selectedPlacement = state.placementsById.get(state.selectedPlacementId)
+      const previousDataUrl = selectedPlacement?.dataUrl || ''
+      await rotateSelectedPlacement(direction)
+      const nextDataUrl = selectedPlacement?.dataUrl || ''
+      if (!nextDataUrl || nextDataUrl === previousDataUrl) {
+        throw new Error('Selected image could not be rotated.')
+      }
+      return getEditorStateSnapshot()
+    },
+    removeSelectedImage() {
+      const selectedPlacementId = state.selectedPlacementId
+      if (!selectedPlacementId) {
+        throw new Error('No image overlay is selected.')
+      }
+      removeSelectedPlacement()
+      if (state.placementsById.has(selectedPlacementId)) {
+        throw new Error('Selected image could not be removed.')
+      }
+      return getEditorStateSnapshot()
+    },
+    removeImageOverlayById(placementId) {
+      removePlacementById(placementId)
+      return getEditorStateSnapshot()
+    },
+    async exportEditedPdf(payload) {
+      const exportedPdf = await createEditedPdfExport()
+      const shouldDownload = Boolean(payload?.download)
+      if (shouldDownload) {
+        downloadBytes(exportedPdf.bytes, exportedPdf.fileName)
+      }
+      const pdfDataUrl = await bytesToDataUrl(exportedPdf.bytes, 'application/pdf')
+      return {
+        fileName: exportedPdf.fileName,
+        byteLength: exportedPdf.bytes.length,
+        pdfDataUrl,
+        editorState: getEditorStateSnapshot()
+      }
+    }
+  }
+}
+
+/**
+ * Initializes WebMCP if supported in the active browser.
+ * @returns {void}
+ */
+function initWebMcp() {
+  webMcpIntegration = new WebMcpIntegration({
+    operations: createWebMcpOperations()
+  })
+  const isEnabled = webMcpIntegration.initialize()
+  if (!isEnabled) {
+    webMcpIntegration = null
+  }
 }
 
 async function initApp() {
@@ -1049,6 +1771,7 @@ async function initApp() {
   updatePdfMetaText()
   updateUiAvailability()
   setStatusKey('status.ready', 'info')
+  initWebMcp()
 }
 
 await initApp()

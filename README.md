@@ -16,10 +16,11 @@ Main capabilities:
 - Upload and preview multi-page PDFs
 - Reorder pages, add blank pages, and delete pages
 - Append pages by uploading additional PDF files
-- Add as many images as needed on selected pages (single or multi-select)
-- Move and scale images using InteractJS
+- Add as many images as needed on selected pages (single or multi-select), including drag-and-drop directly onto a page
+- Move, scale, and rotate images using InteractJS and in-app controls
 - Export the edited document as a new PDF
 - Runtime localization (`English` / `Deutsch`) with persisted locale preference (`lang` URL override supported)
+- WebMCP imperative tool integration for agent-driven workflows across PDF/page/image editing actions
 
 ## Documentation
 
@@ -60,4 +61,4 @@ App-level tests are in `tests/`.
 - On live hosting (all-inkl), app version metadata is served via `GET /api/app-meta.php`.
 - Images are normalized to PNG internally before PDF embedding for stable export.
 - Multiple overlay images per page are supported.
-- Selected image can be removed via button or `Delete`/`Backspace`.
+- Selected image can be rotated in 90° steps or removed via button or `Delete`/`Backspace`.
