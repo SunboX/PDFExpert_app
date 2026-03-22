@@ -56,6 +56,11 @@ npm test
 
 App-level tests are in `tests/`.
 
+## License
+
+The code in this repository is licensed under the PolyForm Noncommercial License 1.0.0.
+See `LICENSE.md` for the full license text and `NOTICE` for the required notices that must travel with the software.
+
 ## Notes
 
 - Frontend runtime dependencies are vendored into `src/vendor/` to avoid production `/node_modules` requirements.
