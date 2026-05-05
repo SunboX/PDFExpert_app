@@ -1,0 +1,37 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: PDF Expert
+Upstream-Contact: André Fiedler / SunboX
+Source: https://github.com/SunboX/PDFExpert_app
+
+Files:
+    .gitignore
+    .prettierrc.json
+    index.html
+    package.json
+    package-lock.json
+    api/app-version.json
+    src/i18n/*.json
+Copyright: 2026 André Fiedler
+License: AGPL-3.0-or-later
+
+Files: src/vendor/interactjs/interact.min.js
+Copyright: 2012-present Taye Adeyemi <dev@taye.me>
+License: MIT
+
+Files: src/vendor/pdf-lib/pdf-lib.esm.min.js
+Copyright:
+    2019 Andrew Dillon
+    Microsoft Corporation
+License: MIT AND Apache-2.0
+
+Files: src/vendor/pdfjs-dist/build/*
+Copyright: 2024 Mozilla Foundation
+License: Apache-2.0
+
+Files: src/assets/fonts/ibm-plex-mono-*.woff2
+Copyright: 2017 IBM Corp.
+License: OFL-1.1
+
+Files: src/assets/fonts/space-grotesk-*.woff2
+Copyright: 2020 The Space Grotesk Project Authors
+License: OFL-1.1

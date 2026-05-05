@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { PDFDocument } from '/src/vendor/pdf-lib/pdf-lib.esm.min.js'
 import { GlobalWorkerOptions, getDocument } from '/src/vendor/pdfjs-dist/build/pdf.mjs'
 import { AppApiEndpointUtils } from './AppApiEndpointUtils.mjs'
