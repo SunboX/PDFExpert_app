@@ -48,6 +48,17 @@ PORT=3100 npm start
 - The live app reads version metadata from `GET /api/app-meta.php`.
 - Frontend runtime libraries and fonts are shipped directly from `src/vendor/` and `src/assets/fonts/` (no `/node_modules` web path required).
 
+## Analytics
+
+- The app loads the centralized cookieless tracker from `https://analytics.andrefiedler.de/tracker.js`.
+- The public site key is `pdf_expert_app`.
+- Register each deployed browser origin in the Analytics `analytics_sites` table or dashboard before expecting events. The production row should use the deployed app origin and public key `pdf_expert_app`.
+
+```sql
+INSERT INTO analytics_sites (name, allowed_origin, public_key, active, created_at)
+VALUES ('PDF Expert', 'https://your-pdf-app-origin.example', 'pdf_expert_app', 1, UTC_TIMESTAMP());
+```
+
 ## Test
 
 ```bash
