@@ -339,6 +339,14 @@ input:disabled {
   margin-bottom: 0.65rem;
 }
 
+.footer-slogan {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 0.8rem;
+  text-align: center;
+}
+
 .footer-grid {
   display: grid;
   grid-template-columns: auto auto auto 1fr;

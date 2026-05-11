@@ -19,7 +19,7 @@ test('index html provides locale selector and i18n hooks', async () => {
   assert.match(html, /data-i18n="labels\.workspaceDropPdfPrompt"/)
 })
 
-test('index html footer includes github and mastodon links', async () => {
+test('index html footer includes slogan, github, and mastodon links', async () => {
   const html = await readFile(new URL('index.html', root), 'utf8')
 
   assert.match(html, /class="page-footer"/)
@@ -27,6 +27,8 @@ test('index html footer includes github and mastodon links', async () => {
   assert.match(html, /data-i18n="footer\.responsible"/)
   assert.match(html, /data-i18n="footer\.contact"/)
   assert.match(html, /data-i18n="footer\.version"/)
+  assert.match(html, /data-i18n="footer\.slogan"/)
+  assert.match(html, /Build and hostet in Germany/)
   assert.match(html, /data-app-version/)
   assert.match(html, /href="https:\/\/github\.com\/SunboX\/PDFExpert_app"/)
   assert.match(html, /href="https:\/\/mastodon\.social\/@sonnenkiste"/)
@@ -67,6 +69,7 @@ test('translation bundles include footer keys', async () => {
   assert.match(en, /"responsible"/)
   assert.match(en, /"contact"/)
   assert.match(en, /"version"/)
+  assert.match(en, /"slogan"/)
   assert.match(en, /"githubAria"/)
   assert.match(en, /"mastodonAria"/)
 
@@ -74,6 +77,7 @@ test('translation bundles include footer keys', async () => {
   assert.match(de, /"responsible"/)
   assert.match(de, /"contact"/)
   assert.match(de, /"version"/)
+  assert.match(de, /"slogan"/)
   assert.match(de, /"githubAria"/)
   assert.match(de, /"mastodonAria"/)
 })
