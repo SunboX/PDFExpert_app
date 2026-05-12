@@ -44,9 +44,20 @@ PORT=3100 npm start
 
 ## Live Hosting (all-inkl)
 
-- Deploy `index.html`, `src/`, and `api/`.
+- Deploy `index.html`, `robots.txt`, `sitemap.xml`, `src/`, and `api/`.
 - The live app reads version metadata from `GET /api/app-meta.php`.
 - Frontend runtime libraries and fonts are shipped directly from `src/vendor/` and `src/assets/fonts/` (no `/node_modules` web path required).
+
+## Production SEO
+
+- The production URL is `https://pdf-expert.app/`.
+- The app is public and does not require login.
+- The root page is a static, crawlable HTML shell with title, description, canonical URL, and no `noindex` directive.
+- The Express test server and static hosting should return `200` for `/`, `/robots.txt`, and `/sitemap.xml`.
+- The SPA has one important public route for now: `/`. Add normal `<a href="/page">` links and update `sitemap.xml` before adding more public pages.
+- Check `https://pdf-expert.app/robots.txt` before launch changes to confirm pages and assets are not blocked.
+- Submit `https://pdf-expert.app/sitemap.xml` in Google Search Console after the domain property is verified.
+- Use Google Search Console URL Inspection for `https://pdf-expert.app/`, then request indexing for the main URL after each production SEO change.
 
 ## Analytics
 
